@@ -1,0 +1,23 @@
+{
+  "name": "post-install-frontend",
+  "version": "1.0.0",
+  "description": "A front end (webpage) containing the post install command for our development environment",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/urbanspr1nter/avg-dev.git"
+  },
+  "author": "Roger Ngo",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/urbanspr1nter/avg-dev/issues"
+  },
+  "homepage": "https://github.com/urbanspr1nter/avg-dev#readme",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
