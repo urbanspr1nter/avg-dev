@@ -5,7 +5,7 @@
 /**
  * gcc main.c -o webby
  * 
- * ./webby -t "My Portfolio" -h "Roger's Coding Portfolio" -c contents.txt -o /path/to/index.html
+ * ./webby -s /path/to/style.css -t "My Portfolio" -h "Roger's Coding Portfolio" -c contents.txt -o /path/to/index.html
  */
 
 
@@ -13,14 +13,18 @@
 #include <unistd.h>
 
 int main(int argc, char* argv[]) {
+  char* page_stylesheet_filename;
   char* page_title;
   char* page_heading;
   char* page_contents_filename;
   char* page_output_filename;
 
   char ch;
-  while ((ch = getopt(argc, argv, "t:h:c:o:")) != EOF) {
+  while ((ch = getopt(argc, argv, "s:t:h:c:o:")) != EOF) {
     switch (ch) {
+      case 's':
+        page_stylesheet_filename = optarg;
+        break;
       case 't':
         page_title = optarg;
         break;
@@ -44,6 +48,16 @@ int main(int argc, char* argv[]) {
   fprintf(output_file, "<html>");
   fprintf(output_file, "<head>");
   fprintf(output_file, "<title>%s</title>\n", page_title);
+
+  fprintf(output_file, "<style>\n");
+  char style_line_buffer[1000];
+  FILE *style_file = fopen(page_stylesheet_filename, "r");
+  while (fscanf(style_file, "%999[^\n]\n", style_line_buffer) == 1) {
+    fprintf(output_file, "%s", style_line_buffer);  
+  }
+  fclose(style_file);
+  fprintf(output_file, "</style>\n");
+
   fprintf(output_file, "</head>");
   fprintf(output_file,"<body>");
   fprintf(output_file, "<h1>%s</h1>\n", page_heading);
