@@ -1,6 +1,7 @@
 {
-    "files.associations": {
-        "stdio.h": "c",
-        "type_traits": "c"
-    }
+  "files.associations": {
+    "stdio.h": "c",
+    "type_traits": "c",
+    "unistd.h": "c"
+  }
 }
