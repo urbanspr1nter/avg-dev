@@ -16,7 +16,11 @@ void happy_birthday(turtle* t) {
 }
 
 int main(int argc, char* argv[]) {
-  turtle myrtle = {"Myrtle", "Leatherback sea turtle", 99};
+  turtle myrtle = {
+    .name = "Myrtle", 
+    .species = "Leatherback sea turtle", 
+    .age = 99
+  };
   happy_birthday(&myrtle); // &myrtle -> turtle* 
   printf("%s's age is now %i\n", myrtle.name, myrtle.age);
 
