@@ -27,66 +27,70 @@ void printPerson(Person *p) {
   );
 }
 
+void printList(Person* start) {
+  Person* t = start;
+  while (t != NULL) {
+    printPerson(t);
+    t = (Person*)t->next;
+  }
+}
+
+/**
+ * This function will allocate memory in the heap to store a Person structure.
+ * Remember to call free() to give back memory to the system when the struct 
+ * is no longer needed.
+ */
+Person* createPerson(char* firstName, char* lastName, short age, Gender gender) {
+  Person* p = (Person*)malloc(sizeof(Person));
+  if (p == NULL) {
+    fprintf(stderr, "Not enough memory to create a new Person\n");
+    exit(1);
+  }
+
+  p->firstName = firstName;
+  p->lastName = lastName;
+  p->age = age;
+  p->gender = gender;
+  p->next = NULL;
+
+  return p;
+}
+
+void append(Person* tail, Person* p) {
+  if (tail == NULL) {
+    return;
+  }
+  tail->next = (struct Person*)p;
+}
+
+void freeList(Person* start) {
+  Person* startNode = start;
+  Person* nextNode = NULL;
+
+  while (startNode != NULL) {
+    nextNode = (Person*)startNode->next;
+    free(startNode);
+    startNode = nextNode;
+  }
+}
+
 int main(int argc, char* argv[]) {
-  Person a = {
-      .firstName = "Bob",
-      .lastName = "Peters",
-      .age = 43,
-      .gender = MALE,
-      .next = NULL
-  };
+  Person* a = createPerson("Bob", "Peters", 43, MALE);
+  Person* b = createPerson("Sally", "Peters", 43, FEMALE);
+  Person* c = createPerson("Ken", "Peters", 8, MALE);
+  Person* d = createPerson("Joe", "Peters", 80, MALE);
+  Person* e = createPerson("Ann", "Peters", 80, FEMALE);
 
-  Person b = {
-      .firstName = "Sally",
-      .lastName = "Peters",
-      .age = 43,
-      .gender = FEMALE,
-      .next = NULL
-  };
+  append(NULL, a);
+  append(a, b);
+  append(b, c);
+  append(c, d);
+  append(d, e);
 
-  Person c = {
-      .firstName = "Ken",
-      .lastName = "Peters",
-      .age = 8,
-      .gender = MALE,
-      .next = NULL
-  };
+  printList(a); 
 
-  Person d = {
-    .firstName = "Joe",
-    .lastName = "Peters",
-    .age = 80, 
-    .gender = MALE,
-    .next = NULL
-  };
-
-  a.next = (struct Person*)&b;
-  b.next = (struct Person*)&c;
-  c.next = (struct Person*)&d;
-
-  Person* t = &a;
-  while (t != NULL) {
-    printPerson(t);
-    t = (Person*)(t->next);
-  }
-
-  Person e = {
-    .firstName = "Ann",
-    .lastName = "Peters",
-    .age = 80,
-    .gender = FEMALE,
-    .next = NULL
-  };
-
-  puts("------------");
-  d.next = (struct Person*)&e;
-
-
-  t = &a;
-  while (t != NULL) {
-    printPerson(t);
-    t = (Person*)(t->next);
-  }
+  // Free memory that was allocated for the list
+  freeList(a);
 
   return 0;
 }
