@@ -18,13 +18,47 @@ void dyarr_initialize(DynamicArray* curr, int initialCapacity) {
   curr->data = (int*)malloc(sizeof(int) * initialCapacity);
 }
 
+void dyarr_push(DynamicArray* curr, int item) {
+  // resize if needed
+  float loadFactor = (float)curr->length / curr->capacity;
+  if (loadFactor >= 0.5) {
+    int* newData = (int*)malloc(2 * curr->capacity * sizeof(int));
+
+    for (int i = 0; i < curr->length; i++) {
+      *(newData + i) = *(curr->data + i);
+    }
+
+    free(curr->data);
+
+    curr->data = newData;
+    curr->capacity = 2 * curr->capacity;
+  }
+
+  *(curr->data + curr->length) = item;
+  curr->length = curr->length + 1;
+}
+
+int dyarr_get(DynamicArray* curr, int index) {
+  if (index < 0 || index >= curr->length) {
+    fprintf(stderr, "Index out of range.\n");
+    exit(1);
+  }
+
+  return *(curr->data + index); 
+}
+
 int main(int argc, char* argv[]) {
   DynamicArray w = {.data = NULL, .length = 0, .capacity = 0};
   dyarr_initialize(&w, 3);
 
-  *(w.data + 0) = 7;
+  for (int i = 0; i < 100000000; i++) {
+    dyarr_push(&w, 888);
+    printf("Length of array: %d, Capacity: %d\n", w.length, w.capacity);
+  }
 
-  printf("Dynamic array information: first element: %i, length: %i, capacity: %i\n", *w.data, w.length, w.capacity);
+  for (int i = 0; i < w.length; i++) {
+    // printf("%d\n", dyarr_get(&w, i));
+  }
 
   return 0;
 }
