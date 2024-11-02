@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef struct Node {
   int value;
@@ -40,38 +41,76 @@ void postorder(Node* currRoot) {
   doSomething(currRoot);
 }
 
+Node* createNode(int value) {
+  Node* result = (Node*)malloc(sizeof(Node));
+
+  result->value = value;
+  result->left = NULL;
+  result->right = NULL;
+
+  return result;
+}
+
+void insertHelper(Node** root, Node* nodeToInsert) {
+  Node *currNode = (*root);
+  
+  if (currNode->left == NULL 
+        && currNode->right == NULL) {
+
+    if (nodeToInsert->value < currNode->value) {
+      currNode->left = nodeToInsert;
+    } else {
+      currNode->right = nodeToInsert;
+    }
+
+    return;
+  }
+
+  if (currNode->left == NULL 
+        && nodeToInsert->value < currNode->value) {
+    currNode->left = nodeToInsert;
+
+    return;
+  }
+  if (currNode->right == NULL 
+        && nodeToInsert->value >= currNode->value) {
+    currNode->right = nodeToInsert;
+
+    return;
+  }
+  
+  if (nodeToInsert->value < currNode->value) {
+    insertHelper(&(currNode->left), nodeToInsert);
+  } else {
+    insertHelper(&(currNode->right), nodeToInsert);
+  }
+}
+
+void insert(Node**root, int value) {
+  Node* nodeToInsert = createNode(value);
+
+  if (*root == NULL) {
+    *root = nodeToInsert;
+    return;
+  }
+
+  insertHelper(root, nodeToInsert);
+}
+
 int main(int argc, char* argv[]) {
-  Node nRoot = {.value = 20, .left = NULL, .right = NULL};
-  Node n10 = {.value = 10, .left = NULL, .right = NULL};
-  Node n30 = {.value = 30, .left = NULL, .right = NULL};
-  Node n5 = {.value = 5, .left = NULL, .right= NULL};
-  Node n15 = {.value = 15, .left = NULL, .right = NULL};
-  Node n25 = {.value = 25, .left = NULL, .right = NULL};
-  Node n35 = {.value = 35, .left = NULL, .right = NULL};
+  Node* nRoot = NULL;
+  int v = 20;
 
-  nRoot.left = &n10;
-  nRoot.right = &n30;
+  insert(&nRoot, v);
+  insert(&nRoot, 10);
+  insert(&nRoot, 30);
+  insert(&nRoot, 15);
+  insert(&nRoot, 35);
+  insert(&nRoot, 5);
+  insert(&nRoot, 25);
+  insert(&nRoot, 28);
 
-  n10.left = &n5;
-  n10.right = &n15;
-
-  n30.left = &n25;
-  n30.right = &n35;
-
-
-  // Test the inorder traversal
-  // 5, 10, 15, 20, 25, 30, 35,
-  puts("Inorder traversal");
-  inorder(&nRoot);
-  printf("\n");
-
-  puts("Preorder traversal");
-  preorder(&nRoot);
-  printf("\n");
-
-
-  puts("Postorder traversal");
-  postorder(&nRoot);
+  inorder(nRoot);
   printf("\n");
 
   return 0;
