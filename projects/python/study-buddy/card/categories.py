@@ -1,0 +1,2 @@
+CATEGORY_NETWORKING = "Networking"
+CATEGORY_OPERATING_SYSTEMS = "Operating Systems"

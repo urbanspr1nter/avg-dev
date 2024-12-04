@@ -1,49 +1,18 @@
-class Card:
+from card.card import Card
+from card.categories import *
+from card_stack import CardStack
+import json
 
-    def __init__(self, label, description):
-        self._label = label
-        self._description = description
-        self._show_answer = False
+with open("data.json") as fp:
+    data_contents = fp.read()
 
-    def flip(self):
-        self._show_answer = not self._show_answer
+    data_as_obj = json.loads(data_contents)
 
-    def display(self):
-        if self._show_answer is True:
-            return self._description
+    card_stack = CardStack()
+    for content in data_as_obj:
+        new_card = Card(content["label"], content["description"], content["category"])
+        card_stack.add(new_card)
 
-        return self._label
-
-    def set_label(self, label):
-        self._label = label
-
-    def get_label(self):
-        return self._label
-
-    def set_description(self, description):
-        self._description = description
-
-    def get_description(self):
-        return self._description
-
-    def to_string(self):
-        return f"{self._label} - {self._description}"
-
-
-
-card_stack = []
-card_stack.append(Card("OSI Layer 7", "This is the application layer of the OSI network model."))
-card_stack.append(Card("OSI Layer 6", "This is the presentation layer of the OSI network model."))
-
-for card in card_stack:
-    print(card.display())
-
-card_stack[0].flip()
-
-for card in card_stack:
-    print(card.display())
-
-card_stack[0].flip()
-
-for card in card_stack:
-    print(card.display())
+    card_collection = card_stack.get_collection()
+    for card in card_collection:
+        print(card.to_string())

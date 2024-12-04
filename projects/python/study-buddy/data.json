@@ -1,0 +1,17 @@
+[
+  {
+    "label": "OSI Layer 7",
+    "description": "This is the application layer of the OSI network model.",
+    "category": "Networking"
+  },
+  {
+    "label": "OSI Layer 6",
+    "description": "This is the presentation layer of the OSI network model.",
+    "category": "Networking"
+  },
+  {
+    "label": "OSI Layer 5",
+    "description": "This is the session layer of the OSI network model.",
+    "category": "Networking"
+  }
+]
