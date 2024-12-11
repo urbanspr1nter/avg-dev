@@ -34,12 +34,13 @@ class Deck:
 
     def __iter__(self):
         self.current_card_idx = 0
+        self.collection_to_iterate = list(self._collection)
 
         return self
 
     def __next__(self):
-        if self.current_card_idx < len(self._collection):
-            curr_result = self._collection[self.current_card_idx]
+        if self.current_card_idx < len(self.collection_to_iterate):
+            curr_result = self.collection_to_iterate[self.current_card_idx]
 
             self.current_card_idx += 1
 
