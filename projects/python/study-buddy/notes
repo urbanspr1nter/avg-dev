@@ -1,0 +1,49 @@
+How a request to an LLM looks like
+
+-> POST /api/chat
+
+Port Ollama listens on by default: 11434
+
+POST http://localhost:11434/api/chat
+
+{
+    "model": "llama3.2:3b-instruct-q8_0",
+    "stream": false,
+    "messages": [
+        {
+            role: "user",
+            content: "this is my response to your message, LLM"
+        }
+    ]
+}
+
+
+Example chat with context maintained:
+
+{
+  "model": "llama3.2:3b-instruct-q8_0",
+  "stream": false,
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello there"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! It's nice to meet you. Is there something I can help you with or would you like to chat?"
+    },
+    {
+      "role": "user",
+      "content": "I am having problems with taking care of my orchid plant. I think it is dead."
+    },
+    {
+    "role": "assistant",
+    "content": "Don't worry, it's not uncommon for people to struggle with caring for orchids! Let's go through some troubleshooting steps to determine if your orchid has indeed passed away.\n\nHere are a few questions to help me narrow down the possibilities:\n\n1. How long have you had the orchid plant?\n2. What type of orchid is it (e.g., Phalaenopsis, Dendrobium, Oncidium)?\n3. Can you describe its current condition? Is it dry, wilted, or has it lost leaves?\n4. Have you been providing your orchid with sufficient light, water, and fertilizer?\n\nFeel free to answer any of these questions, and I'll do my best to help you determine if your orchid is indeed dead and provide guidance on how to care for future orchids!"
+  },
+  {
+    "role": "user",
+    "content": "my next response...."
+  }
+  ]
+}
+

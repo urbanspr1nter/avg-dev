@@ -1,5 +1,10 @@
 from deck import Deck
 from card.card import Card
+from llmclient import LlmClient
+import requests
+import json
+
+from promptreader import PromptReader
 
 
 class Game:
@@ -7,6 +12,9 @@ class Game:
     def __init__(self, deck: Deck):
         self._deck = deck
         self._completed_deck = Deck()
+
+        prompt = PromptReader().read_prompt()
+        self._llmclient = LlmClient(prompt)
 
     def play(self):
         for card in self._deck:
@@ -35,10 +43,4 @@ class Game:
 
 
     def _verify_answer(self, question: str, answer: str, attempt: str) -> bool:
-        answer_lower = answer.lower()
-        attempt_lower = attempt.lower()
-
-        if attempt_lower in answer_lower:
-            return True
-
-        return False
+        return self._llmclient.validate_answer(question, answer, attempt)
