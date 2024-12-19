@@ -13,5 +13,10 @@
     "label": "OSI Layer 5",
     "description": "This is the session layer of the OSI network model.",
     "category": "Networking"
+  },
+  {
+    "label": "What is cooperative multi-tasking?",
+    "description": "A form of multi-tasking where processes are responsible for yielding back to the operating system.",
+    "category": "Operating Systems"
   }
 ]
