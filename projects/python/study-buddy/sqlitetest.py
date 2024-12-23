@@ -34,6 +34,8 @@ deck_name = 'main_deck'
 cursor.execute("INSERT INTO deck (name) VALUES (?)", [deck_name])
 
 conn.commit()
+
+# close when you do not need anymore database queries
 conn.close()
 
 print("yay all done.")

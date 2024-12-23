@@ -1,6 +1,7 @@
 from deck import Deck
 from card.card import Card
 from llmclient import LlmClient
+from dbclient import DbClient
 import requests
 import json
 
@@ -15,6 +16,8 @@ class Game:
 
         prompt = PromptReader().read_prompt()
         self._llmclient = LlmClient(prompt)
+
+        self._dbclient = DbClient("study-buddy.db")
 
     def play(self):
         for card in self._deck:
@@ -41,6 +44,15 @@ class Game:
             # put it aside
             self._completed_deck.add(active_card)
 
+    def test_db_stuff(self):
+        self._dbclient.query("DELETE FROM card", [])
+        
+        results = self._dbclient.query("SELECT * FROM card", [])
+        for row in results:
+            print(row)
+
+
+        self._dbclient.close()
 
     def _verify_answer(self, question: str, answer: str, attempt: str) -> bool:
         return self._llmclient.validate_answer(question, answer, attempt)
