@@ -5,10 +5,9 @@ from game import Game
 loader = Dataloader()
 
 # load the cards specified in data.json into the deck
-deck = loader.load_deck("data.json")
+deck = loader.load_deck("study-buddy.db")
 
 # initialize a game instance with deck as a argument into the constructor
 game = Game(deck)
 
-# result = game.play()
-game.test_db_stuff()
+result = game.play()
