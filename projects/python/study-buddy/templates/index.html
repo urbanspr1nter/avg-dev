@@ -1,0 +1,21 @@
+<html>
+    <head>
+        <title>study-buddy </title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <script src="{{ url_for('static', filename='app.js') }}" type="text/javascript"></script>
+    </head>
+    <body>
+        <h1>study buddy</h1>
+        <p>Study with me!</p>
+        <div class="debug-outline" id="game-container">
+            <div class="debug-outline" id="card-container">
+                OSI Layer 7
+            </div>
+            <div class="debug-outline" id="controls-container">
+                <button type="button" id="previous-card">⬅</button>
+                <button type="button" id="flip-card">🔃</button>
+                <button type="button" id="next-card">➡</button>
+            </div>
+        </div>
+    </body>
+</html>

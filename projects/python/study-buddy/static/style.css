@@ -1,0 +1,39 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+body {
+    font-family: "Inter", serif;
+}
+
+div.debug-outline {
+    border: 2px solid red;
+}
+
+div#game-container,
+div#card-container,
+div#controls-container {
+    padding: 16px;
+}
+
+div#game-container {
+    margin: auto;
+    max-width: 75%;
+    display: flex;
+    flex-direction: column;
+}
+
+
+div#card-container,
+div#controls-container {
+    margin: auto;
+}
+div#card-container {
+    margin-bottom: 16px;
+    font-weight: 800;
+    font-size: x-large;
+}
+
+#controls-container button {
+    width: 100px;
+    height: 50px;
+    font-size: large;
+}
