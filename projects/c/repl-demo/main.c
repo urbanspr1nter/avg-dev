@@ -7,7 +7,6 @@
 
 #define MAX_LINE_SIZE 256
 
-// vim
 void runProgram(char* name) {
 	pid_t childPid = fork();
 	
@@ -48,9 +47,9 @@ int main(void) {
 		printf("$ ");
 		fgets(input, MAX_LINE_SIZE, stdin);
 		sscanf(input, "%s", result);
+		
 		*(result + strlen(result)) = '\0';
 
-		////
 		if (strcmp(result, "exit") == 0) {
 			keepPrompting = false;
 		} else {
