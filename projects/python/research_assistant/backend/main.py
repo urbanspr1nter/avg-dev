@@ -1,6 +1,15 @@
 import json
 from flask import Flask, jsonify, request, Response, stream_with_context
 from flask_cors import CORS
+
+# Standard library imports
+import json
+
+# Third-party library imports
+from flask import Flask, jsonify, request, Response, stream_with_context
+from flask_cors import CORS
+
+# Local module imports
 from research_assistant.llm.client import BasicChatClient
 
 app = Flask(__name__)

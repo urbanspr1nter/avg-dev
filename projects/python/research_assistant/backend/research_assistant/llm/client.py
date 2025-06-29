@@ -1,6 +1,5 @@
 import openai
 from openai import Stream
-from openai.types.chat import ChatCompletionChunk
 
 """
 A basic LLM client that interfaces with an OpenAI compatible endpoint.
@@ -22,7 +21,7 @@ class BasicChatClient:
         self.client = openai.Client(
             base_url=self.base_url,
             api_key=api_key
-        ) 
+        )
 
         self.messages = []
         self.system_prompt = "You are a helpful research assistant."
@@ -44,7 +43,7 @@ class BasicChatClient:
             stream=True,
             temperature=opts.get("temperature", 1.0)
         )
- 
+  
         assistant_message = ""
         for chunk in stream:
             delta_content = chunk.choices[0].delta.content
@@ -53,7 +52,7 @@ class BasicChatClient:
 
             assistant_message += delta_content
 
-            yield delta_content 
+            yield delta_content
 
         self.messages.append({
             "role": "assistant",
