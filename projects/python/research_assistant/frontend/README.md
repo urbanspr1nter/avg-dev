@@ -1,0 +1,1 @@
+This is going to be the frontend project for `research_assistant`. It will be a typescript web application initialized with vite.
