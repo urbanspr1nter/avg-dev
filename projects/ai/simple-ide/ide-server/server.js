@@ -24,8 +24,7 @@ function validateProjectExists(projectName) {
     .catch(() => false);
 }
 
-// Helper function to validate file name and check if it exists
-function validateFileName(projectName, fileName) {
+function validateFileName(fileName) {
   const fileNameRegex = /^[A-Za-z0-9_.-]+$/;
 
   // Check file name format
@@ -37,6 +36,14 @@ function validateFileName(projectName, fileName) {
     };
   }
 
+  return {
+    valid: true,
+    error: null,
+  };
+}
+
+// Helper function to validate file name and check if it exists
+function validateFileExists(projectName, fileName) {
   // Check for path traversal attempts - ensure file path is within project directory
   const projectDir = join(projectPath, projectName);
   const filePath = join(projectDir, fileName);
@@ -109,23 +116,52 @@ app.post("/api/projects", async (req, res) => {
   }
 });
 
+app.get("/api/projects/:projectName/file/:fileName", async (req, res) => {
+  const { projectName, fileName } = req.params;
+
+  if (!(await validateProjectExists(projectName))) {
+    return res.status(404).json({ error: "Project does not exist." });
+  }
+
+  const validateFilenameResult = validateFileName(fileName);
+  console.log(validateFilenameResult.error);
+  if (!validateFilenameResult.valid) {
+    return res
+      .status(400)
+      .json({ error: "Invalid filename or file does not exist." });
+  }
+
+  try {
+    const fileContents = (
+      await fs.readFile(path.join(projectPath, projectName, fileName))
+    ).toString("utf-8");
+
+    return res.status(200).json({
+      data: fileContents,
+    });
+  } catch {
+    return res.status(500).json({
+      error: "Internal server error while reading file.",
+    });
+  }
+});
+
 app.post("/api/projects/:projectName/file", async (req, res) => {
   const { projectName } = req.params;
   const { fileName, content } = req.body;
 
   // first validate if the project already exists
   // check if ${projectPath}/projectName is accessible and exists in the filesystem
-  //  -> return a 500 error if not accessible or does not exist
-  try {
-    const projectExists = await validateProjectExists(projectName);
-    if (!projectExists) {
-      return res.status(404).json({
-        error: "Project does not exist.",
-      });
-    }
-  } catch (error) {
-    return res.status(500).json({
-      error: "Internal server error while validating project.",
+  //  -> return a 404 error if not accessible or does not exist
+  if (!(await validateProjectExists(projectName))) {
+    return res.status(404).json({
+      error: "Project does not exist.",
+    });
+  }
+
+  if (!(await validateFileExists(projectName, fileName))) {
+    return res.status(400).json({
+      error: "File already exists.",
     });
   }
 
@@ -255,6 +291,69 @@ app.delete("/api/projects/:projectName/file/:fileName", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       error: "Failed to delete file.",
+    });
+  }
+});
+
+app.get("/api/projects", async (req, res) => {
+  try {
+    const projectDirs = await fs.readdir(projectPath);
+    const projects = projectDirs.filter(async (dir) => {
+      try {
+        const stats = await fs.stat(join(projectPath, dir));
+        return stats.isDirectory();
+      } catch {
+        return false;
+      }
+    });
+
+    // Filter returns a promise, so we need to resolve it
+    const resolvedProjects = await Promise.all(projects);
+    return res.status(200).json({
+      projects: resolvedProjects,
+    });
+  } catch (error) {
+    console.error("Error listing projects:", error);
+    return res.status(500).json({
+      error: "Failed to list projects.",
+    });
+  }
+});
+
+app.get("/api/projects/:projectName/files", async (req, res) => {
+  const { projectName } = req.params;
+
+  // Validate project exists
+  if (!(await validateProjectExists(projectName))) {
+    return res.status(404).json({
+      error: "Project does not exist.",
+    });
+  }
+
+  try {
+    const projectDir = join(projectPath, projectName);
+    const files = await fs.readdir(projectDir);
+
+    // Filter out directories, only return files
+    const fileDetails = [];
+    for (const file of files) {
+      const filePath = join(projectDir, file);
+      const stats = await fs.stat(filePath);
+      if (stats.isFile()) {
+        fileDetails.push({
+          name: file,
+          size: stats.size,
+          modified: stats.mtime.toISOString(),
+        });
+      }
+    }
+
+    return res.status(200).json({
+      files: fileDetails,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Failed to list files.",
     });
   }
 });
