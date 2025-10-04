@@ -358,6 +358,125 @@ app.get("/api/projects/:projectName/files", async (req, res) => {
   }
 });
 
+// POST endpoint for compiling C files
+app.post("/api/projects/:projectName/compile/:fileName", async (req, res) => {
+  const { projectName, fileName } = req.params;
+
+  // Validate project exists
+  if (!(await validateProjectExists(projectName))) {
+    return res.status(404).json({
+      error: "Project does not exist.",
+    });
+  }
+
+  // Validate file name format
+  const fileNameRegex = /^[A-Za-z0-9_.-]+$/;
+  if (!fileNameRegex.test(fileName)) {
+    return res.status(400).json({
+      error:
+        "Invalid file name. Only alphanumeric characters, underscores, hyphens, and dots are allowed.",
+    });
+  }
+
+  // Check if file exists in project
+  const projectDir = join(projectPath, projectName);
+  const filePath = join(projectDir, fileName);
+
+  // Verify the resolved path is within the project directory
+  if (!filePath.startsWith(projectDir)) {
+    return res.status(400).json({
+      error:
+        "Invalid file path. File cannot be created outside the project directory.",
+    });
+  }
+
+  try {
+    await fs.access(filePath);
+  } catch {
+    return res.status(404).json({
+      error: "File does not exist in the project.",
+    });
+  }
+
+  // Compile the C file using Firejail
+  const { exec } = await import("child_process");
+  
+  try {
+    // Execute compilation with Firejail
+    // Use a more compatible approach - change directory and run without complex whitelisting
+    const compileCommand = `cd "${projectDir}" && firejail --profile=/etc/firejail/compile-c.profile gcc -o "${fileName.replace(".c", "")}" "${fileName}"`;
+    
+    const { stdout, stderr } = await new Promise((resolve, reject) => {
+      exec(compileCommand, { timeout: 30000 }, (error, stdout, stderr) => {
+        if (error) {
+          // For compilation errors, we still want to return the result
+          // The error might be due to compilation failing, but we still get stdout/stderr
+          if (stdout || stderr) {
+            resolve({ stdout, stderr });
+          } else {
+            reject(error);
+          }
+        } else {
+          resolve({ stdout, stderr });
+        }
+      });
+    });
+
+    // Check if compilation was successful
+    // Firejail outputs initialization info to stderr, so we need to be more careful
+    // If stderr contains only Firejail initialization messages, consider it successful
+    const firejailMessages = [
+      "Reading profile",
+      "Parent pid",
+      "Child process initialized",
+      "Parent is shutting down"
+    ];
+    
+    const isFirejailOnlyOutput = stderr && 
+      firejailMessages.every(msg => stderr.includes(msg)) && 
+      stderr.split('\n').filter(line => line.trim()).length <= firejailMessages.length;
+    
+    // If there are actual compilation errors (not just Firejail messages) OR 
+    // if there are other non-Firejail messages in stderr, consider it a failure
+    const hasActualErrors = stderr && 
+      (!isFirejailOnlyOutput || stderr.split('\n').filter(line => line.trim()).length > firejailMessages.length);
+    
+    if (hasActualErrors) {
+      // Compilation had errors (or Firejail had issues)
+      return res.status(200).json({
+        success: false,
+        stdout: stdout,
+        stderr: stderr,
+      });
+    } else {
+      // Compilation successful - check if output file was created
+      const outputFile = join(projectDir, fileName.replace(".c", ""));
+      try {
+        await fs.access(outputFile);
+        // If we get here, the file was created successfully
+        return res.status(200).json({
+          success: true,
+          stdout: stdout,
+          stderr: stderr,
+        });
+      } catch {
+        // File was not created, but no error was thrown - this is unusual
+        return res.status(200).json({
+          success: false,
+          stdout: stdout,
+          stderr: "Compilation completed but output file not created",
+        });
+      }
+    }
+  } catch (error) {
+    // Handle compilation errors
+    return res.status(500).json({
+      error: "Compilation failed.",
+      message: error.message,
+    });
+  }
+});
+
 app.listen(5000, async () => {
   console.log("We work on port 5000!!");
 
