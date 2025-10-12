@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Word Processor</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Main viewport container (1280x720) -->
+    <div id="viewport-container">
+        <div class="editor-wrapper">
+            <!-- Top Toolbar -->
+            <div class="toolbar">
+                <div class="toolbar-group">
+                    <select id="fontFamily" class="toolbar-select" title="Font Family">
+                        <option value="Arial">Arial</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Courier New">Courier New</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Verdana">Verdana</option>
+                        <option value="Comic Sans MS">Comic Sans MS</option>
+                    </select>
+                    
+                    <select id="fontSize" class="toolbar-select" title="Font Size">
+                        <option value="12">12</option>
+                        <option value="14">14</option>
+                        <option value="16" selected>16</option>
+                        <option value="18">18</option>
+                        <option value="20">20</option>
+                        <option value="24">24</option>
+                        <option value="28">28</option>
+                        <option value="32">32</option>
+                        <option value="36">36</option>
+                        <option value="48">48</option>
+                    </select>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <button id="boldBtn" class="toolbar-btn" title="Bold (Ctrl+B)">
+                        <strong>B</strong>
+                    </button>
+                    <button id="italicBtn" class="toolbar-btn" title="Italic (Ctrl+I)">
+                        <em>I</em>
+                    </button>
+                    <button id="underlineBtn" class="toolbar-btn" title="Underline (Ctrl+U)">
+                        <u>U</u>
+                    </button>
+                    <button id="strikeBtn" class="toolbar-btn" title="Strikethrough">
+                        <s>S</s>
+                    </button>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <select id="headingStyle" class="toolbar-select" title="Heading Style">
+                        <option value="p">Normal</option>
+                        <option value="h1">Heading 1</option>
+                        <option value="h2">Heading 2</option>
+                        <option value="h3">Heading 3</option>
+                        <option value="h4">Heading 4</option>
+                    </select>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <button id="alignLeftBtn" class="toolbar-btn" title="Align Left">
+                        <span>≡</span>
+                    </button>
+                    <button id="alignCenterBtn" class="toolbar-btn" title="Align Center">
+                        <span>≣</span>
+                    </button>
+                    <button id="alignRightBtn" class="toolbar-btn" title="Align Right">
+                        <span>≡</span>
+                    </button>
+                    <button id="alignJustifyBtn" class="toolbar-btn" title="Justify">
+                        <span>☰</span>
+                    </button>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <button id="bulletListBtn" class="toolbar-btn" title="Bullet List">
+                        <span>• List</span>
+                    </button>
+                    <button id="numberListBtn" class="toolbar-btn" title="Numbered List">
+                        <span>1. List</span>
+                    </button>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <input type="color" id="textColorBtn" class="color-picker" title="Text Color" value="#000000">
+                    <input type="color" id="bgColorBtn" class="color-picker" title="Highlight Color" value="#ffff00">
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <button id="undoBtn" class="toolbar-btn" title="Undo (Ctrl+Z)">
+                        <span>↶</span>
+                    </button>
+                    <button id="redoBtn" class="toolbar-btn" title="Redo (Ctrl+Y)">
+                        <span>↷</span>
+                    </button>
+                </div>
+
+                <div class="toolbar-divider"></div>
+
+                <div class="toolbar-group">
+                    <button id="clearBtn" class="toolbar-btn toolbar-btn-danger" title="Clear All">
+                        <span>🗑 Clear</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Editor Content Area -->
+            <div id="editor" contenteditable="true" spellcheck="false">
+                <p>Welcome to Simple Word Processor!</p>
+                <p><br></p>
+                <p>This is a demonstration word processor with the following features:</p>
+                <p><br></p>
+                <ul>
+                    <li><strong>Bold</strong>, <em>Italic</em>, and <u>Underline</u> text formatting</li>
+                    <li>Multiple font families and sizes</li>
+                    <li>Heading styles (H1 through H4)</li>
+                    <li>Text alignment options</li>
+                    <li>Bullet and numbered lists</li>
+                    <li>Text and highlight colors</li>
+                </ul>
+                <p><br></p>
+                <p>Start typing to create your document!</p>
+            </div>
+
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <span id="charCount">0 characters</span>
+                <span id="wordCount">0 words</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screenshot Button (Outside Viewport) -->
+    <div id="screenshot-controls">
+        <button id="screenshotBtn" class="screenshot-btn">
+            📸 Take Screenshot
+        </button>
+        <span id="screenshotStatus"></span>
+    </div>
+
+    <!-- Include html2canvas for screenshots -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+
