@@ -7,8 +7,14 @@ class Registers:
     PC: int = 0
 
 class CPU:
-    def __init__(self):
+    def __init__(self, memory=None):
         self.registers = Registers()
+        # Memory instance can be injected for testing or real use.
+        if memory is None:
+            from src.memory.gb_memory import Memory
+            self.memory = Memory()
+        else:
+            self.memory = memory
 
 
     def get_register(self, code):
