@@ -1,23 +1,40 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import LoraConfig, get_peft_model
-from datasets import load_dataset
+import jsonlines
+import json
+from unsloth import FastLanguageModel
 from trl import SFTTrainer, SFTConfig
 import torch
+from datasets import Dataset
+from prompt import get_system_prompt
+
+def subgoals_to_text(example):
+    subgoals = json.loads(example["instruction_subgoals"])
+
+    text = ''
+    for subgoal in subgoals:
+        text += f"- {subgoal}\n"
+
+    
+    example["instruction_subgoals"] = text;
+
+    return example
 
 base_model = "unsloth/gemma-3-270m-it"
 
-model = AutoModelForCausalLM.from_pretrained(
+model, tokenizer = FastLanguageModel.from_pretrained(
     base_model,
-    dtype=torch.float16,
+    dtype=torch.bfloat16,
+    max_seq_length=8192,
+    load_in_4bit=False,
+    load_in_8bit=False,
+    full_finetuning=False,
     device_map="auto"
 )
 
-tokenizer = AutoTokenizer.from_pretrained(base_model)
-
-lora_config = LoraConfig(
+model = FastLanguageModel.get_peft_model(
+    model,
     r=32,
     lora_alpha=32,
-    lora_dropout=0,
+    use_gradient_checkpointing="unsloth",
     target_modules=[
         "q_proj",
         "k_proj",
@@ -26,44 +43,42 @@ lora_config = LoraConfig(
         "gate_proj",
         "up_proj",
         "down_proj"
-    ],
-    bias="none",
-    task_type="CAUSAL_LM"
+    ]
 )
-model = get_peft_model(model, lora_config)
+model = FastLanguageModel.for_training(model)
+
 
 # dataset
-dataset = load_dataset("mlabonne/FineTome-100K", split="train[:100]")
+with jsonlines.open("dataset/plans-v1.jsonl") as j:
+    dataset = list(j)
+
+dataset = Dataset.from_list(dataset)
+dataset = dataset.map(subgoals_to_text)
 
 def convert_to_chatml(example):
-    messages = example["conversations"]
+    conversations = [
+        {
+            "role": "system",
+            "content": get_system_prompt()
+        },
+        {
+            "role": "user",
+            "content": example["goal"]
+        },
+        {
+            "role": "assistant",
+            "content": example["instruction_subgoals"]
+        }
+    ]
 
-    conversations = []
-    for message in messages:
-        if message["from"] == "human":
-            conversations.append(
-                {
-                    "role": "user",
-                    "content": message["value"]
-                }
-            )
-        elif message["from"] == "gpt":
-            conversations.append(
-                {
-                    "role": "assistant",
-                    "content": message["value"]
-                }
-            )
-
-    return {
-        "conversations": conversations
-    }
+    return { "conversations": conversations }
 
 dataset = dataset.map(convert_to_chatml)
 
 def formatting_prompts_func(examples):
    convos = examples["conversations"]
    texts = [tokenizer.apply_chat_template(convo, tokenize = False, add_generation_prompt = False).removeprefix('<bos>') for convo in convos]
+
    return { "text" : texts, }
 
 
@@ -74,15 +89,15 @@ training_args = SFTConfig(
     per_device_train_batch_size=1,
     gradient_accumulation_steps=4,
     warmup_ratio=0.03,
-    max_steps=5,
-    #num_train_epochs=1,
-    learning_rate=2e-5,
+    #max_steps=5,
+    num_train_epochs=10,
+    learning_rate=1e-4,
     logging_steps=1,
     optim="adamw_8bit",
     weight_decay=0.01,
     lr_scheduler_type="cosine",
     seed=42,
-    output_dir="outputs",
+    output_dir="outputs/checkpoints",
     report_to="none"
 )
 
@@ -93,3 +108,16 @@ trainer = SFTTrainer(
 )
 
 trainer_stats = trainer.train()
+
+# save safetensors for vLLM serving
+model.save_pretrained_merged(
+    "outputs/gemma-3-270m-ft",
+    tokenizer,
+    safe_serialization=True
+)
+
+# save to gguf for LM Studio
+model.save_pretrained_gguf(
+    "outputs/gemma-3-270b-ft-GGUF", tokenizer,
+    quantization_method = "f16"
+)
