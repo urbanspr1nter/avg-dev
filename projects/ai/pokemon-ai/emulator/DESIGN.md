@@ -89,6 +89,47 @@ The Gameboy CPU uses a two-byte decoding approach:
 
 This allows for a total of 512 possible instructions (256 unprefixed + 256 cbprefixed).
 
+### Opcodes.json Structure
+
+The `Opcodes.json` file contains metadata for all CPU instructions organized into two top-level objects: `unprefixed` and `cbprefixed`. Each opcode entry is keyed by its hex value (e.g., `"0x00"`, `"0xCB"`) and contains the following fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mnemonic` | string | Assembly instruction name (e.g., "NOP", "LD", "JR") |
+| `bytes` | number | Total instruction size in bytes, including the opcode and any operands |
+| `cycles` | array of numbers | CPU cycles consumed by this instruction. Single element `[4]` for fixed timing. Multiple elements `[8, 12]` for conditional instructions where the first value is the base case (condition false) and subsequent values are for the true case |
+| `operands` | array of objects | List of operands for the instruction. Each operand has `name` (register/value name), optional `bytes` (size), and `immediate` (whether it's a direct value vs memory reference) |
+| `immediate` | boolean | Whether the instruction uses immediate addressing |
+| `flags` | object | How the instruction affects CPU flags (Z, N, H, C). Values: `"-"` (unaffected), `"0"` (reset to 0), `"1"` (set to 1), or the flag letter (e.g., `"Z"`) if the flag is set based on the operation result |
+
+**Example - Fixed cycle instruction:**
+```json
+"0x00": {
+  "mnemonic": "NOP",
+  "bytes": 1,
+  "cycles": [4],
+  "operands": [],
+  "immediate": true,
+  "flags": { "Z": "-", "N": "-", "H": "-", "C": "-" }
+}
+```
+
+**Example - Conditional instruction with variable cycles:**
+```json
+"0x20": {
+  "mnemonic": "JR",
+  "bytes": 2,
+  "cycles": [12, 8],
+  "operands": [
+    { "name": "NZ", "immediate": true },
+    { "name": "r8", "bytes": 1, "immediate": true }
+  ],
+  "immediate": true,
+  "flags": { "Z": "-", "N": "-", "H": "-", "C": "-" }
+}
+```
+In this example, the instruction takes 12 cycles if the jump is taken (NZ condition is true), or 8 cycles if not taken.
+
 ### CPU Execution Loop Pseudocode
 
 ```

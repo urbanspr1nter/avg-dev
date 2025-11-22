@@ -6,9 +6,18 @@ class Registers:
     SP: int = 0
     PC: int = 0
 
+
+import json
+
 class CPU:
     def __init__(self, memory=None):
         self.registers = Registers()
+        self.current_cycles = 0
+
+        self.opcodes_db = {}
+        with open("Opcodes.json", "r") as f:
+            self.opcodes_db = json.load(f)
+
         # Memory instance can be injected for testing or real use.
         if memory is None:
             from src.memory.gb_memory import Memory
@@ -79,3 +88,50 @@ class CPU:
             self.registers.PC = value
         else:
             raise ValueError(f'Unknown register code: {code}')
+
+    def fetch_byte(self, address):
+        """Fetch a single byte from memory at the given address."""
+        return self.memory.get_value(address)
+
+    def fetch_word(self, address):
+        """Fetch a 16-bit word from memory at the given address (little-endian)."""
+        low = self.memory.get_value(address)
+        high = self.memory.get_value(address + 1)
+        return (high << 8) | low
+
+    def fetch(self):
+        """Fetch the current opcode from memory at PC and increment PC."""
+        opcode = self.fetch_byte(self.registers.PC)
+        self.registers.PC += 1
+        return opcode
+
+    def run(self, max_cycles=-1):
+
+        while True:
+            if self.current_cycles == max_cycles:
+                break
+
+            """Execute one CPU instruction cycle."""
+            # Fetch the opcode
+            opcode = self.fetch()
+        
+            # Look up the opcode in our database
+            opcode_info = None
+
+            # Check if it's a prefixed opcode (0xCB)
+            if opcode == 0xCB:
+                # Fetch the second byte for prefixed instructions
+                opcode = self.fetch_byte(self.registers.PC)
+                self.registers.PC += 1
+
+                opcode_info = self.opcodes_db["cbprefixed"].get(f"0x{opcode:02X}")
+            else:
+                opcode_info = self.opcodes_db["unprefixed"].get(f"0x{opcode:02X}")
+        
+            # If we don't have the opcode implemented, raise an exception
+            if opcode_info is None:
+                raise NotImplementedError(f'Opcode {opcode:#04x} not implemented')
+            
+
+            # assume the first number of cycles for now.
+            self.current_cycles += opcode_info["cycles"][0] 
