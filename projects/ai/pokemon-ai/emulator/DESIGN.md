@@ -158,47 +158,100 @@ while True:
     # do stuff here... (implement the opcode)
 ```
 
+
 ## How we implement each opcode
 
-The emulator uses a **dispatch table** (a Python dictionary) that maps every opcode value to a dedicated handler method on the `GBCPU` class. 
+The emulator uses a **dispatch table** (a Python dictionary) that maps every opcode value to a dedicated handler method on the `CPU` class.
 
 ### 1. Decoding & dispatch
+
+The main execution loop in `run()` handles opcode fetching, operand fetching, handler dispatch, and cycle counting. See the full implementation in `src/cpu/gb_cpu.py`.
+
+**Dispatch table structure:**
 ```python
-# Example in src/cpu/gb_cpu.py
-opcode_handlers = {
+self.opcode_handlers = {
     0x00: self._nop,
     0x01: self._ld_bc_d16,
-    # …
-    0xCB00: self._rlc_b,   # cb‑prefixed opcodes are stored as 0xCBxx
+    0x06: self._ld_b_n8,
+    # ... 256 unprefixed opcodes ...
 }
-```
-The main execution loop becomes:
-
-```python
-while True:
-    opcode = self.fetch_byte(self.pc)
-    if opcode == 0xCB:
-        opcode = (opcode << 8) | self.fetch_byte(self.pc + 1)
-    handler = self.opcode_handlers.get(opcode)
-    if handler is None:
-        raise NotImplementedError(f'Opcode {opcode:#04x} not implemented')
-    handler()
 ```
 
 ### 2. State encapsulation
-- **CPU class** holds registers (`self.af`, `self.bc`, …), flags, and the program counter as instance attributes.
-- **Memory object** wraps the 64 KB array with `read(addr)` / `write(addr, value)` methods; the CPU keeps a reference to this object. No module‑level globals are used.
+
+- **CPU class** holds all execution state:
+  - `self.registers` - Registers object with AF, BC, DE, HL, SP, PC
+  - `self.current_cycles` - Total CPU cycles executed
+  - `self.operand_values` - List of immediate operand values fetched for current instruction
+  - `self.memory` - Memory object reference
+  - `self.opcodes_db` - Loaded opcode metadata from Opcodes.json
+
+- **Memory object** wraps the 64 KB address space with `get_value(addr)` / `set_value(addr, value)` methods
+- No module-level globals are used; all state is instance-based for testability
 
 ### 3. Handler design
-Each opcode has its own method (`_nop`, `_ld_bc_d16`, …) that implements the exact semantics, updates registers/memory via the encapsulated state, and returns the number of cycles consumed (optional). Common utilities such as flag manipulation live in private helper methods (`_set_flags`, `_read_word`, etc.) to keep handlers concise.
+
+Each opcode has its own handler method that:
+1. Receives `opcode_info` as a parameter (for metadata like flags, cycles)
+2. Accesses `self.operand_values` for immediate operand data
+3. Implements opcode-specific logic with hardcoded behavior (since instruction set is fixed)
+4. Returns the number of CPU cycles consumed
+
+**Handler signature:**
+```python
+def _handler_name(self, opcode_info) -> int:
+    """Mnemonic - Brief description"""
+    # Access immediate operands from self.operand_values
+    # Update registers/memory via self.set_register(), self.memory.set_value()
+    return opcode_info["cycles"][0]  # or cycles[1] for conditional branch
+```
+
+**Example handlers:**
+
+Simple instruction (NOP):
+```python
+def _nop(self, opcode_info) -> int:
+    """NOP - No operation"""
+    return opcode_info["cycles"][0]  # 4 cycles
+```
+
+Instruction with operand (LD BC, n16):
+```python
+def _ld_bc_d16(self, opcode_info) -> int:
+    """LD BC, n16 - Load 16-bit immediate into BC"""
+    value = self.operand_values[0]  # n16 was fetched into operand_values[0]
+    self.set_register('BC', value)
+    return opcode_info["cycles"][0]  # 12 cycles
+```
+
+Conditional instruction (JR NZ, r8):
+```python
+def _jr_nz_r8(self, opcode_info) -> int:
+    """JR NZ, r8 - Jump relative if Zero flag not set"""
+    offset = self.operand_values[0]
+    z_flag = (self.get_register('AF') & 0x80) != 0
+    
+    if not z_flag:  # Jump taken
+        if offset > 127:
+            offset = offset - 256  # Convert to signed
+        self.registers.PC += offset
+        return opcode_info["cycles"][0]  # 12 cycles
+    else:  # Jump not taken
+        return opcode_info["cycles"][1]  # 8 cycles
+```
+
+**Key design decisions:**
+- **Hardcoded logic**: Since the Game Boy instruction set is fixed and won't expand, handlers use hardcoded logic rather than generic interpretation
+- **Cycle return value**: Handlers return cycle count rather than updating `self.current_cycles` directly, separating execution logic from cycle accounting
+- **Operand access**: Immediate operand values are pre-fetched into `self.operand_values` by the main loop
 
 ### 4. Documentation & testing
-- Every handler includes a short docstring with the mnemonic, affected registers/flags, and cycle count.
-- Unit tests can instantiate `GBCPU` with a mock memory, place an opcode at `PC`, run one loop iteration, and assert the expected state changes.
 
-This approach makes the opcode implementation **readable**, **extensible**, and **easy to test** for future contributors.
+- Every handler includes a docstring with the mnemonic and brief description
+- Unit tests instantiate `CPU` with test memory, set up instruction bytes, run one cycle, and assert expected state changes
+- Tests verify both register/memory changes and correct cycle counts
 
-## Running Unit Tests
+This approach makes the opcode implementation **readable**, **maintainable**, and **easy to test** for future contributors.
 
 To run unit tests, execute the following command from the project root directory:
 

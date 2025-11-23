@@ -150,5 +150,5 @@ class CPU:
                     self.registers.PC += operand["bytes"]
 
 
-            # assume the first number of cycles for now.
+            # FIXME: assume the first number of cycles for now.
             self.current_cycles += opcode_info["cycles"][0] 
