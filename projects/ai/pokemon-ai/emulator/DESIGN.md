@@ -102,6 +102,16 @@ The `Opcodes.json` file contains metadata for all CPU instructions organized int
 | `immediate` | boolean | Whether the instruction uses immediate addressing |
 | `flags` | object | How the instruction affects CPU flags (Z, N, H, C). Values: `"-"` (unaffected), `"0"` (reset to 0), `"1"` (set to 1), or the flag letter (e.g., `"Z"`) if the flag is set based on the operation result |
 
+#### Operand Size Constraints
+
+Operands in the Game Boy instruction set are limited to a maximum of 2 bytes due to the 8-bit CPU architecture with a 16-bit address bus:
+
+- **1 byte**: `n8` (8-bit immediate value), `r8` (8-bit relative offset), `e8` (8-bit signed offset)
+- **2 bytes**: `n16` (16-bit immediate value), `a16` (16-bit absolute address)
+- **0 bytes**: Register operands (A, B, C, D, E, H, L, BC, DE, HL, SP, AF) and condition flags (Z, NZ, C, NC, etc.)
+
+No instruction operand exceeds 2 bytes in size.
+
 **Example - Fixed cycle instruction:**
 ```json
 "0x00": {

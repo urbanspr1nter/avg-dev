@@ -13,6 +13,7 @@ class CPU:
     def __init__(self, memory=None):
         self.registers = Registers()
         self.current_cycles = 0
+        self.operand_values = []
 
         self.opcodes_db = {}
         with open("Opcodes.json", "r") as f:
@@ -111,6 +112,8 @@ class CPU:
             if self.current_cycles == max_cycles:
                 break
 
+            self.operand_values = []
+
             """Execute one CPU instruction cycle."""
             # Fetch the opcode
             opcode = self.fetch()
@@ -131,7 +134,21 @@ class CPU:
             # If we don't have the opcode implemented, raise an exception
             if opcode_info is None:
                 raise NotImplementedError(f'Opcode {opcode:#04x} not implemented')
-            
+
+            # just increment PC as appropriate per operand.
+            operands = opcode_info["operands"]
+            for operand in operands:
+                if "bytes" in operand:
+                    num_bytes_for_operand = operand["bytes"]
+                    if num_bytes_for_operand == 1:
+                        self.operand_values.append(self.fetch_byte(self.registers.PC))
+                    elif num_bytes_for_operand == 2:
+                        self.operand_values.append(self.fetch_word(self.registers.PC))
+                    else:
+                        raise ValueError("Not implemented yet to fetch more than 2 bytes.")
+                    
+                    self.registers.PC += operand["bytes"]
+
 
             # assume the first number of cycles for now.
             self.current_cycles += opcode_info["cycles"][0] 
