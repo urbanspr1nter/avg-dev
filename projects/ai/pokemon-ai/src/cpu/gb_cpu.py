@@ -246,6 +246,36 @@ class CPU:
         """
         return (a + b) > 0xFFFF
 
+    # Stack operation helpers
+
+    def push_word(self, value):
+        """Push a 16-bit word onto the stack.
+        
+        The stack grows downward in memory. SP is decremented by 2,
+        then the word is written in little-endian format.
+        
+        Args:
+            value: int - 16-bit value to push
+        """
+        self.registers.SP = (self.registers.SP - 1) & 0xFFFF
+        self.memory.set_value(self.registers.SP, (value >> 8) & 0xFF)  # High byte
+        self.registers.SP = (self.registers.SP - 1) & 0xFFFF
+        self.memory.set_value(self.registers.SP, value & 0xFF)  # Low byte
+
+    def pop_word(self):
+        """Pop a 16-bit word from the stack.
+        
+        The word is read in little-endian format, then SP is incremented by 2.
+        
+        Returns:
+            int: 16-bit value popped from stack
+        """
+        low = self.memory.get_value(self.registers.SP)
+        self.registers.SP = (self.registers.SP + 1) & 0xFFFF
+        high = self.memory.get_value(self.registers.SP)
+        self.registers.SP = (self.registers.SP + 1) & 0xFFFF
+        return (high << 8) | low
+
     # Opcode Handlers
 
     def _nop(self, opcode_info) -> int:
