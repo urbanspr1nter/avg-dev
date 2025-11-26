@@ -26,6 +26,15 @@ class CPU:
         else:
             self.memory = memory
 
+        # Opcode handlers dictionary: maps opcode value to handler method
+        self.opcode_handlers = {
+            0x00: self._nop,
+            0x01: self._ld_bc_n16,
+            0x06: self._ld_b_n8,
+            0x0E: self._ld_c_n8,
+            0x11: self._ld_de_n16,
+        }
+
 
     def get_register(self, code):
         """Return the value of a register or its high/low byte."""
@@ -90,6 +99,191 @@ class CPU:
         else:
             raise ValueError(f'Unknown register code: {code}')
 
+    # Flag manipulation helpers
+
+    def get_flag(self, flag):
+        """Get the value of a CPU flag.
+        
+        Args:
+            flag: 'Z', 'N', 'H', or 'C'
+        
+        Returns:
+            bool: True if flag is set, False otherwise
+        """
+        flags = self.registers.AF & 0xFF
+        if flag == 'Z':
+            return (flags & 0x80) != 0
+        elif flag == 'N':
+            return (flags & 0x40) != 0
+        elif flag == 'H':
+            return (flags & 0x20) != 0
+        elif flag == 'C':
+            return (flags & 0x10) != 0
+        else:
+            raise ValueError(f'Unknown flag: {flag}')
+
+    def set_flag(self, flag, value):
+        """Set a CPU flag to a specific value.
+        
+        Args:
+            flag: 'Z', 'N', 'H', or 'C'
+            value: bool or int (0/1) - True/1 to set, False/0 to clear
+        """
+        flags = self.registers.AF & 0xFF
+        
+        if flag == 'Z':
+            if value:
+                flags |= 0x80
+            else:
+                flags &= ~0x80
+        elif flag == 'N':
+            if value:
+                flags |= 0x40
+            else:
+                flags &= ~0x40
+        elif flag == 'H':
+            if value:
+                flags |= 0x20
+            else:
+                flags &= ~0x20
+        elif flag == 'C':
+            if value:
+                flags |= 0x10
+            else:
+                flags &= ~0x10
+        else:
+            raise ValueError(f'Unknown flag: {flag}')
+        
+        # Update AF register with new flags (preserve A register in high byte)
+        self.registers.AF = (self.registers.AF & 0xFF00) | flags
+
+    # Flag calculation helpers
+
+    def calc_zero_flag(self, result):
+        """Calculate Zero flag based on result.
+        
+        Args:
+            result: int - The result value to check
+        
+        Returns:
+            bool: True if result is 0, False otherwise
+        """
+        return (result & 0xFF) == 0
+
+    def calc_half_carry_add_8bit(self, a, b, carry=0):
+        """Calculate Half-carry flag for 8-bit addition.
+        
+        Args:
+            a: int - First operand
+            b: int - Second operand
+            carry: int - Carry in (0 or 1)
+        
+        Returns:
+            bool: True if carry from bit 3 to bit 4, False otherwise
+        """
+        return ((a & 0xF) + (b & 0xF) + carry) > 0xF
+
+    def calc_carry_add_8bit(self, a, b, carry=0):
+        """Calculate Carry flag for 8-bit addition.
+        
+        Args:
+            a: int - First operand
+            b: int - Second operand
+            carry: int - Carry in (0 or 1)
+        
+        Returns:
+            bool: True if carry from bit 7, False otherwise
+        """
+        return (a + b + carry) > 0xFF
+
+    def calc_half_carry_sub_8bit(self, a, b, carry=0):
+        """Calculate Half-carry flag for 8-bit subtraction.
+        
+        Args:
+            a: int - First operand (minuend)
+            b: int - Second operand (subtrahend)
+            carry: int - Borrow in (0 or 1)
+        
+        Returns:
+            bool: True if borrow from bit 4, False otherwise
+        """
+        return (int(a & 0xF) - int(b & 0xF) - carry) < 0
+
+    def calc_carry_sub_8bit(self, a, b, carry=0):
+        """Calculate Carry flag for 8-bit subtraction.
+        
+        Args:
+            a: int - First operand (minuend)
+            b: int - Second operand (subtrahend)
+            carry: int - Borrow in (0 or 1)
+        
+        Returns:
+            bool: True if borrow occurred, False otherwise
+        """
+        return (a - b - carry) < 0
+
+    def calc_half_carry_add_16bit(self, a, b):
+        """Calculate Half-carry flag for 16-bit addition.
+        
+        Args:
+            a: int - First operand
+            b: int - Second operand
+        
+        Returns:
+            bool: True if carry from bit 11 to bit 12, False otherwise
+        """
+        return ((a & 0xFFF) + (b & 0xFFF)) > 0xFFF
+
+    def calc_carry_add_16bit(self, a, b):
+        """Calculate Carry flag for 16-bit addition.
+        
+        Args:
+            a: int - First operand
+            b: int - Second operand
+        
+        Returns:
+            bool: True if carry from bit 15, False otherwise
+        """
+        return (a + b) > 0xFFFF
+
+    # Opcode Handlers
+
+    def _nop(self, opcode_info) -> int:
+        """NOP - No operation"""
+        return opcode_info["cycles"][0]
+
+    def _ld_bc_n16(self, opcode_info) -> int:
+        """LD BC,n16 - Load 16-bit immediate into BC"""
+        # operand_values[0] is BC register
+        # operand_values[1] is n16 immediate value
+        value = self.operand_values[1]["value"]
+        self.set_register('BC', value)
+        return opcode_info["cycles"][0]
+
+    def _ld_b_n8(self, opcode_info) -> int:
+        """LD B,n8 - Load 8-bit immediate into B"""
+        # operand_values[0] is B register
+        # operand_values[1] is n8 immediate value
+        value = self.operand_values[1]["value"]
+        self.set_register('B', value)
+        return opcode_info["cycles"][0]
+
+    def _ld_c_n8(self, opcode_info) -> int:
+        """LD C,n8 - Load 8-bit immediate into C"""
+        # operand_values[0] is C register
+        # operand_values[1] is n8 immediate value
+        value = self.operand_values[1]["value"]
+        self.set_register('C', value)
+        return opcode_info["cycles"][0]
+
+    def _ld_de_n16(self, opcode_info) -> int:
+        """LD DE,n16 - Load 16-bit immediate into DE"""
+        # operand_values[0] is DE register
+        # operand_values[1] is n16 immediate value
+        value = self.operand_values[1]["value"]
+        self.set_register('DE', value)
+        return opcode_info["cycles"][0]
+
     def fetch_byte(self, address):
         """Fetch a single byte from memory at the given address."""
         return self.memory.get_value(address)
@@ -135,20 +329,55 @@ class CPU:
             if opcode_info is None:
                 raise NotImplementedError(f'Opcode {opcode:#04x} not implemented')
 
-            # just increment PC as appropriate per operand.
+            # Fetch and construct operand dictionaries
             operands = opcode_info["operands"]
             for operand in operands:
+                operand_name = operand["name"]
+                operand_immediate = operand["immediate"]
+                
                 if "bytes" in operand:
+                    # Operand has data to fetch from instruction stream
                     num_bytes_for_operand = operand["bytes"]
                     if num_bytes_for_operand == 1:
-                        self.operand_values.append(self.fetch_byte(self.registers.PC))
+                        fetched_value = self.fetch_byte(self.registers.PC)
                     elif num_bytes_for_operand == 2:
-                        self.operand_values.append(self.fetch_word(self.registers.PC))
+                        fetched_value = self.fetch_word(self.registers.PC)
                     else:
                         raise ValueError("Not implemented yet to fetch more than 2 bytes.")
                     
                     self.registers.PC += operand["bytes"]
+                    
+                    # Determine operand type
+                    if operand_name == "a16":
+                        operand_type = "immediate_address"
+                    else:
+                        # n8, n16, e8, r8
+                        operand_type = "immediate_value"
+                    
+                    self.operand_values.append({
+                        "name": operand_name,
+                        "value": fetched_value,
+                        "immediate": operand_immediate,
+                        "type": operand_type
+                    })
+                else:
+                    # Register operand (no bytes to fetch)
+                    if operand_immediate:
+                        operand_type = "register"
+                    else:
+                        operand_type = "register_indirect"
+                    
+                    self.operand_values.append({
+                        "name": operand_name,
+                        "value": operand_name,
+                        "immediate": operand_immediate,
+                        "type": operand_type
+                    })
 
-
-            # FIXME: assume the first number of cycles for now.
-            self.current_cycles += opcode_info["cycles"][0] 
+            # Dispatch to the handler and accumulate cycles
+            handler = self.opcode_handlers.get(opcode)
+            if handler is None:
+                raise NotImplementedError(f'Handler for opcode {opcode:#04x} not implemented')
+            
+            cycles_used = handler(opcode_info)
+            self.current_cycles += cycles_used 

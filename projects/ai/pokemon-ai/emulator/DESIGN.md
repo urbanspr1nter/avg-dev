@@ -182,12 +182,56 @@ self.opcode_handlers = {
 - **CPU class** holds all execution state:
   - `self.registers` - Registers object with AF, BC, DE, HL, SP, PC
   - `self.current_cycles` - Total CPU cycles executed
-  - `self.operand_values` - List of immediate operand values fetched for current instruction
+  - `self.operand_values` - List of operand dictionaries fetched for current instruction (see Operand Structure below)
   - `self.memory` - Memory object reference
   - `self.opcodes_db` - Loaded opcode metadata from Opcodes.json
 
 - **Memory object** wraps the 64 KB address space with `get_value(addr)` / `set_value(addr, value)` methods
 - No module-level globals are used; all state is instance-based for testability
+
+#### Operand Structure
+
+Each element in `self.operand_values` is a dictionary with the following uniform structure:
+
+```python
+{
+    "name": str,       # Operand name from Opcodes.json (e.g., "n16", "BC", "A", "a16")
+    "value": int|str,  # Numeric value (for immediate data/addresses) OR register name string
+    "immediate": bool, # From Opcodes.json - whether operand is immediate (True) or indirect (False)
+    "type": str        # One of the operand types defined below
+}
+```
+
+**Operand Types:**
+
+| Type | Description | Examples | immediate | value type |
+|------|-------------|----------|-----------|------------|
+| `immediate_value` | Numeric data fetched from instruction stream | n8, n16, e8, r8 | True | int |
+| `immediate_address` | Numeric address fetched from instruction stream | a16 | True | int |
+| `register` | Register operand used directly | A, B, C, BC, DE, HL, SP | True | str |
+| `register_indirect` | Register used as memory address | (BC), (DE), (HL) | False | str |
+
+**Examples:**
+
+```python
+# LD BC, n16 - operand_values contains:
+[
+    {"name": "BC", "value": "BC", "immediate": True, "type": "register"},
+    {"name": "n16", "value": 0x1234, "immediate": True, "type": "immediate_value"}
+]
+
+# LD (BC), A - operand_values contains:
+[
+    {"name": "BC", "value": "BC", "immediate": False, "type": "register_indirect"},
+    {"name": "A", "value": "A", "immediate": True, "type": "register"}
+]
+
+# LD A, (a16) - operand_values contains:
+[
+    {"name": "A", "value": "A", "immediate": True, "type": "register"},
+    {"name": "a16", "value": 0xFF80, "immediate": True, "type": "immediate_address"}
+]
+```
 
 ### 3. Handler design
 
