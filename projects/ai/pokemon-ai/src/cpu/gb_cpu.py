@@ -26,15 +26,15 @@ class CPU:
         else:
             self.memory = memory
 
-        # Opcode handlers dictionary: maps opcode value to handler method
+        # Initialize dispatch table for opcode handlers
         self.opcode_handlers = {
             0x00: self._nop,
             0x01: self._ld_bc_n16,
             0x06: self._ld_b_n8,
             0x0E: self._ld_c_n8,
             0x11: self._ld_de_n16,
+            0x16: self._ld_d_n8,
         }
-
 
     def get_register(self, code):
         """Return the value of a register or its high/low byte."""
@@ -306,6 +306,14 @@ class CPU:
         self.set_register('C', value)
         return opcode_info["cycles"][0]
 
+    def _ld_d_n8(self, opcode_info) -> int:
+        """LD D,n8 - Load 8-bit immediate into D"""
+        # operand_values[0] is D register
+        # operand_values[1] is n8 immediate value
+        value = self.operand_values[1]["value"]
+        self.set_register('D', value)
+        return opcode_info["cycles"][0]
+
     def _ld_de_n16(self, opcode_info) -> int:
         """LD DE,n16 - Load 16-bit immediate into DE"""
         # operand_values[0] is DE register
@@ -327,13 +335,13 @@ class CPU:
     def fetch(self):
         """Fetch the current opcode from memory at PC and increment PC."""
         opcode = self.fetch_byte(self.registers.PC)
-        self.registers.PC += 1
+        self.registers.PC = (self.registers.PC + 1) & 0xFFFF
         return opcode
 
     def run(self, max_cycles=-1):
 
         while True:
-            if self.current_cycles == max_cycles:
+            if max_cycles >= 0 and self.current_cycles >= max_cycles:
                 break
 
             self.operand_values = []
@@ -349,7 +357,7 @@ class CPU:
             if opcode == 0xCB:
                 # Fetch the second byte for prefixed instructions
                 opcode = self.fetch_byte(self.registers.PC)
-                self.registers.PC += 1
+                self.registers.PC = (self.registers.PC + 1) & 0xFFFF
 
                 opcode_info = self.opcodes_db["cbprefixed"].get(f"0x{opcode:02X}")
             else:
@@ -375,7 +383,7 @@ class CPU:
                     else:
                         raise ValueError("Not implemented yet to fetch more than 2 bytes.")
                     
-                    self.registers.PC += operand["bytes"]
+                    self.registers.PC = (self.registers.PC + operand["bytes"]) & 0xFFFF
                     
                     # Determine operand type
                     if operand_name == "a16":

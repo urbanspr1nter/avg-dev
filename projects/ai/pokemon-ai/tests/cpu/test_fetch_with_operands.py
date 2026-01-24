@@ -71,6 +71,21 @@ class TestFetchWithOperands(unittest.TestCase):
         # PC should advance by 8: 1 + 2 + 2 + 3
         self.assertEqual(self.cpu.registers.PC, 0x0008)
         self.assertEqual(self.cpu.current_cycles, 32)
+    
+    def test_run_ld_d_n8(self):
+        """Test running LD D, n8 instruction (0x16, 8 cycles)"""
+        # LD D, n8 (2 bytes, 8 cycles)
+        self.cpu.memory.set_value(0x0000, 0x16)  # LD D, n8
+        self.cpu.memory.set_value(0x0001, 0x42)  # n8 = 0x42
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 2: opcode (1) + operand (1)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # Verify D register was loaded
+        self.assertEqual(self.cpu.get_register('D'), 0x42)
 
 if __name__ == '__main__':
     unittest.main()
