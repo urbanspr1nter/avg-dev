@@ -53,10 +53,47 @@ def ld_e_n8(cpu, opcode_info):
     return opcode_info["cycles"][0]
 
 
+def ld_h_n8(cpu, opcode_info):
+    """LD H,n8 - Load 8-bit immediate into H"""
+    # operand_values[0] is H register
+    # operand_values[1] is n8 immediate value
+    value = cpu.operand_values[1]["value"]
+    cpu.set_register('H', value)
+    return opcode_info["cycles"][0]
+
+
+def ld_l_n8(cpu, opcode_info):
+    """LD L,n8 - Load 8-bit immediate into L"""
+    # operand_values[0] is L register
+    # operand_values[1] is n8 immediate value
+    value = cpu.operand_values[1]["value"]
+    cpu.set_register('L', value)
+    return opcode_info["cycles"][0]
+
+
+def ld_a_n8(cpu, opcode_info):
+    """LD A,n8 - Load 8-bit immediate into A"""
+    # operand_values[0] is A register
+    # operand_values[1] is n8 immediate value
+    value = cpu.operand_values[1]["value"]
+    cpu.set_register('A', value)
+    return opcode_info["cycles"][0]
+
+
 def ld_de_n16(cpu, opcode_info):
     """LD DE,n16 - Load 16-bit immediate into DE"""
     # operand_values[0] is DE register
     # operand_values[1] is n16 immediate value
     value = cpu.operand_values[1]["value"]
     cpu.set_register('DE', value)
+    return opcode_info["cycles"][0]
+
+
+def ld_bc_a(cpu, opcode_info):
+    """LD (BC),A - Load A into memory at address in BC"""
+    # operand_values[0] is BC register (indirect addressing)
+    # operand_values[1] is A register
+    bc_address = cpu.get_register('BC')
+    a_value = cpu.get_register('A')
+    cpu.memory.set_value(bc_address, a_value)
     return opcode_info["cycles"][0]

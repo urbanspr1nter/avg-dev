@@ -10,14 +10,19 @@ class Registers:
 import json
 from src.cpu.handlers.ld_handlers import (
     ld_bc_n16,
+    ld_bc_a,
     ld_b_n8,
     ld_c_n8,
     ld_d_n8,
     ld_e_n8,
+    ld_h_n8,
+    ld_l_n8,
+    ld_a_n8,
     ld_de_n16,
 )
 from src.cpu.handlers.jr_handlers import jr_nz_e8
 from src.cpu.handlers.misc_handlers import nop
+from src.cpu.handlers.inc_dec_handlers import inc_b, inc_c, inc_d, inc_e
 
 class CPU:
     def __init__(self, memory=None):
@@ -40,11 +45,19 @@ class CPU:
         self.opcode_handlers = {
             0x00: nop,
             0x01: ld_bc_n16,
+            0x02: ld_bc_a,
+            0x04: inc_b,
+            0x0C: inc_c,
+            0x14: inc_d,
+            0x1C: inc_e,
             0x06: ld_b_n8,
             0x0E: ld_c_n8,
             0x11: ld_de_n16,
             0x16: ld_d_n8,
             0x1E: ld_e_n8,
+            0x26: ld_h_n8,
+            0x2E: ld_l_n8,
+            0x3E: ld_a_n8,
             0x20: jr_nz_e8,
         }
 
