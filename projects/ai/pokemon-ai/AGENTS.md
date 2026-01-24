@@ -58,6 +58,33 @@ self.opcode_handlers = {
 
 ## Recent Work
 
+### Handler Refactoring (January 24, 2026)
+**Date**: January 24, 2026
+
+**Changes Made**:
+1. Created `src/cpu/handlers/` directory to organize opcode handlers by category
+2. Moved handlers into separate files:
+   - `ld_handlers.py`: LD (load) instructions
+   - `jr_handlers.py`: JR (jump relative) instructions  
+   - `misc_handlers.py`: Miscellaneous instructions like NOP
+3. Updated CPU class to import handlers and call them as functions instead of methods
+4. Added documentation in `src/cpu/handlers/README.md`
+
+**Benefits**:
+- Better code organization by instruction type
+- Easier maintenance and navigation
+- Clearer separation of concerns
+- All 60 CPU tests still pass after refactoring
+
+### JR NZ, e8 Test Fix (0x20)
+**Date**: January 24, 2026
+
+**Issue**: The test `test_run_jr_nz_e8_jump_not_taken` was failing because it set register A to 0x00 but didn't explicitly set the Z flag. In the Gameboy CPU implementation, setting a register value doesn't automatically update flags - flags must be set explicitly.
+
+**Fix**: Added `self.cpu.set_flag('Z', True)` after setting A to 0x00 in the test case at line 124 of `tests/cpu/test_fetch_with_operands.py`.
+
+**Verification**: All 60 CPU tests now pass
+
 ### LD E, n8 Implementation (0x1E)
 **Date**: January 24, 2026
 

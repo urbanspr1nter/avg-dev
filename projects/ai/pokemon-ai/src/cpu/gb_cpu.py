@@ -8,6 +8,16 @@ class Registers:
 
 
 import json
+from src.cpu.handlers.ld_handlers import (
+    ld_bc_n16,
+    ld_b_n8,
+    ld_c_n8,
+    ld_d_n8,
+    ld_e_n8,
+    ld_de_n16,
+)
+from src.cpu.handlers.jr_handlers import jr_nz_e8
+from src.cpu.handlers.misc_handlers import nop
 
 class CPU:
     def __init__(self, memory=None):
@@ -28,13 +38,14 @@ class CPU:
 
         # Initialize dispatch table for opcode handlers
         self.opcode_handlers = {
-            0x00: self._nop,
-            0x01: self._ld_bc_n16,
-            0x06: self._ld_b_n8,
-            0x0E: self._ld_c_n8,
-            0x11: self._ld_de_n16,
-            0x16: self._ld_d_n8,
-            0x1E: self._ld_e_n8,
+            0x00: nop,
+            0x01: ld_bc_n16,
+            0x06: ld_b_n8,
+            0x0E: ld_c_n8,
+            0x11: ld_de_n16,
+            0x16: ld_d_n8,
+            0x1E: ld_e_n8,
+            0x20: jr_nz_e8,
         }
 
     def get_register(self, code):
@@ -277,59 +288,7 @@ class CPU:
         self.registers.SP = (self.registers.SP + 1) & 0xFFFF
         return (high << 8) | low
 
-    # Opcode Handlers
 
-    def _nop(self, opcode_info) -> int:
-        """NOP - No operation"""
-        return opcode_info["cycles"][0]
-
-    def _ld_bc_n16(self, opcode_info) -> int:
-        """LD BC,n16 - Load 16-bit immediate into BC"""
-        # operand_values[0] is BC register
-        # operand_values[1] is n16 immediate value
-        value = self.operand_values[1]["value"]
-        self.set_register('BC', value)
-        return opcode_info["cycles"][0]
-
-    def _ld_b_n8(self, opcode_info) -> int:
-        """LD B,n8 - Load 8-bit immediate into B"""
-        # operand_values[0] is B register
-        # operand_values[1] is n8 immediate value
-        value = self.operand_values[1]["value"]
-        self.set_register('B', value)
-        return opcode_info["cycles"][0]
-
-    def _ld_c_n8(self, opcode_info) -> int:
-        """LD C,n8 - Load 8-bit immediate into C"""
-        # operand_values[0] is C register
-        # operand_values[1] is n8 immediate value
-        value = self.operand_values[1]["value"]
-        self.set_register('C', value)
-        return opcode_info["cycles"][0]
-
-    def _ld_d_n8(self, opcode_info) -> int:
-        """LD D,n8 - Load 8-bit immediate into D"""
-        # operand_values[0] is D register
-        # operand_values[1] is n8 immediate value
-        value = self.operand_values[1]["value"]
-        self.set_register('D', value)
-        return opcode_info["cycles"][0]
-
-    def _ld_e_n8(self, opcode_info) -> int:
-        """LD E,n8 - Load 8-bit immediate into E"""
-        # operand_values[0] is E register
-        # operand_values[1] is n8 immediate value
-        value = self.operand_values[1]["value"]
-        self.set_register('E', value)
-        return opcode_info["cycles"][0]
-
-    def _ld_de_n16(self, opcode_info) -> int:
-        """LD DE,n16 - Load 16-bit immediate into DE"""
-        # operand_values[0] is DE register
-        # operand_values[1] is n16 immediate value
-        value = self.operand_values[1]["value"]
-        self.set_register('DE', value)
-        return opcode_info["cycles"][0]
 
     def fetch_byte(self, address):
         """Fetch a single byte from memory at the given address."""
@@ -426,5 +385,5 @@ class CPU:
             if handler is None:
                 raise NotImplementedError(f'Handler for opcode {opcode:#04x} not implemented')
             
-            cycles_used = handler(opcode_info)
+            cycles_used = handler(self, opcode_info)
             self.current_cycles += cycles_used 

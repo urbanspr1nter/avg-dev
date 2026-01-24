@@ -102,5 +102,38 @@ class TestFetchWithOperands(unittest.TestCase):
         # Verify E register was loaded
         self.assertEqual(self.cpu.get_register('E'), 0x7F)
 
+    def test_run_jr_nz_e8_jump_taken(self):
+        """Test running JR NZ,e8 instruction (0x20) with jump taken (8 cycles)"""
+        # Set Z flag to 0 (not zero)
+        self.cpu.set_register('A', 0x42)
+        
+        # JR NZ, e8 (2 bytes: opcode + offset)
+        self.cpu.memory.set_value(0x0000, 0x20)  # JR NZ, e8
+        self.cpu.memory.set_value(0x0001, 0x05)  # e8 = +5 (jump forward by 5)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=12)
+        
+        # PC should advance by 2 (opcode + offset) then jump by 5
+        self.assertEqual(self.cpu.registers.PC, 0x0007)
+        self.assertEqual(self.cpu.current_cycles, 12)
+
+    def test_run_jr_nz_e8_jump_not_taken(self):
+        """Test running JR NZ,e8 instruction (0x20) with jump not taken (8 cycles)"""
+        # Set Z flag to 1 (zero)
+        self.cpu.set_register('A', 0x00)
+        self.cpu.set_flag('Z', True)
+        
+        # JR NZ, e8 (2 bytes: opcode + offset)
+        self.cpu.memory.set_value(0x0000, 0x20)  # JR NZ, e8
+        self.cpu.memory.set_value(0x0001, 0x05)  # e8 = +5 (jump forward by 5)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 2 only (opcode + offset), no jump
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
+        self.assertEqual(self.cpu.current_cycles, 8)
+
 if __name__ == '__main__':
     unittest.main()
