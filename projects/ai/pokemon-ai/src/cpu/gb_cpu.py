@@ -34,6 +34,7 @@ class CPU:
             0x0E: self._ld_c_n8,
             0x11: self._ld_de_n16,
             0x16: self._ld_d_n8,
+            0x1E: self._ld_e_n8,
         }
 
     def get_register(self, code):
@@ -312,6 +313,14 @@ class CPU:
         # operand_values[1] is n8 immediate value
         value = self.operand_values[1]["value"]
         self.set_register('D', value)
+        return opcode_info["cycles"][0]
+
+    def _ld_e_n8(self, opcode_info) -> int:
+        """LD E,n8 - Load 8-bit immediate into E"""
+        # operand_values[0] is E register
+        # operand_values[1] is n8 immediate value
+        value = self.operand_values[1]["value"]
+        self.set_register('E', value)
         return opcode_info["cycles"][0]
 
     def _ld_de_n16(self, opcode_info) -> int:
