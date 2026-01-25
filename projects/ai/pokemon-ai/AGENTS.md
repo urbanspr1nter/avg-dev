@@ -353,6 +353,109 @@ self.opcode_handlers = {
 
 **Verification**: All 68 CPU tests pass (including the new tests)
 
+### INC L Implementation (0x2C) and INC A Implementation (0x3C)
+**Date**: January 25, 2026
+
+**Changes Made**:
+1. Added `inc_l()` and `inc_a()` handler functions to `src/cpu/handlers/inc_dec_handlers.py`
+   - Both increment their respective registers by 1
+   - Update Z flag if result is zero
+   - Update H flag for half carry
+   - Return 4 cycles each
+
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py:50`:
+   ```python
+   0x2C: inc_l
+   0x3C: inc_a
+   ```
+
+3. Added imports for `inc_l` and `inc_a` functions at `src/cpu/gb_cpu.py:16`
+
+4. Added test cases to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_inc_l(self):
+       """Test running INC L instruction (0x2C, 4 cycles)"""
+       self.cpu.set_register('L', 0x7F)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=4)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('L'), 0x80)
+   
+   def test_run_inc_a(self):
+       """Test running INC A instruction (0x3C, 4 cycles)"""
+       self.cpu.set_register('A', 0x7F)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=4)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('A'), 0x80)
+   ```
+
+**Verification**: All 72 CPU tests pass (including the new tests)
+
+### DEC B Implementation (0x05), DEC C Implementation (0x0D), and DEC D Implementation (0x15)
+**Date**: January 25, 2026
+
+**Changes Made**:
+1. Added `dec_b()`, `dec_c()`, and `dec_d()` handler functions to `src/cpu/handlers/inc_dec_handlers.py`
+   - All decrement their respective registers by 1
+   - Update Z flag if result is zero
+   - Set N flag (always set for DEC instructions)
+   - Update H flag for half borrow
+   - Return 4 cycles each
+
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py:50`:
+   ```python
+   0x05: dec_b
+   0x0D: dec_c
+   0x15: dec_d
+   ```
+
+3. Added imports for `dec_b`, `dec_c`, and `dec_d` functions at `src/cpu/gb_cpu.py:16`
+
+4. Added test cases to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_dec_b(self):
+       """Test running DEC B instruction (0x05, 4 cycles)"""
+       self.cpu.set_register('B', 0x80)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=4)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('B'), 0x7F)
+   
+   def test_run_dec_c(self):
+       """Test running DEC C instruction (0x0D, 4 cycles)"""
+       self.cpu.set_register('C', 0x80)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=4)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('C'), 0x7F)
+   
+   def test_run_dec_d(self):
+       """Test running DEC D instruction (0x15, 4 cycles)"""
+       self.cpu.set_register('D', 0x80)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=4)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('D'), 0x7F)
+   ```
+
+**Verification**: All 75 CPU tests pass (including the new tests)
+
 ## Commands to Run Tests
 
 ```bash

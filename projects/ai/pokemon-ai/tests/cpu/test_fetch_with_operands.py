@@ -400,5 +400,189 @@ class TestFetchWithOperands(unittest.TestCase):
         # Verify Half-carry flag is set (overflow from bit 3 to 4: 0xF -> 0x10)
         self.assertTrue(self.cpu.get_flag('H'))
 
+    def test_run_dec_b(self):
+        """Test running DEC B instruction (0x05, 4 cycles)"""
+        # Set B to 0x80 initially
+        self.cpu.set_register('B', 0x80)
+        
+        # DEC B (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x05)  # DEC B
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify B was decremented
+        self.assertEqual(self.cpu.get_register('B'), 0x7F)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is set (always 1 for DEC)
+        self.assertTrue(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (borrow from bit 4: 0x8 -> 0x7)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_dec_c(self):
+        """Test running DEC C instruction (0x0D, 4 cycles)"""
+        # Set C to 0x80 initially
+        self.cpu.set_register('C', 0x80)
+        
+        # DEC C (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x0D)  # DEC C
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify C was decremented
+        self.assertEqual(self.cpu.get_register('C'), 0x7F)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is set (always 1 for DEC)
+        self.assertTrue(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (borrow from bit 4: 0x8 -> 0x7)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_dec_d(self):
+        """Test running DEC D instruction (0x15, 4 cycles)"""
+        # Set D to 0x80 initially
+        self.cpu.set_register('D', 0x80)
+        
+        # DEC D (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x15)  # DEC D
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify D was decremented
+        self.assertEqual(self.cpu.get_register('D'), 0x7F)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is set (always 1 for DEC)
+        self.assertTrue(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (borrow from bit 4: 0x8 -> 0x7)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_dec_e(self):
+        """Test running DEC E instruction (0x1D, 4 cycles)"""
+        # Set E to 0x80 initially
+        self.cpu.set_register('E', 0x80)
+        
+        # DEC E (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x1D)  # DEC E
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify E was decremented
+        self.assertEqual(self.cpu.get_register('E'), 0x7F)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is set (always 1 for DEC)
+        self.assertTrue(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (borrow from bit 4: 0x8 -> 0x7)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_dec_h(self):
+        """Test running DEC H instruction (0x25, 4 cycles)"""
+        # Set H to 0x80 initially
+        self.cpu.set_register('H', 0x80)
+        
+        # DEC H (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x25)  # DEC H
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify H was decremented
+        self.assertEqual(self.cpu.get_register('H'), 0x7F)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is set (always 1 for DEC)
+        self.assertTrue(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (borrow from bit 4: 0x8 -> 0x7)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_dec_l(self):
+        """Test running DEC L instruction (0x2D, 4 cycles)"""
+        # Set L to 0x80 initially
+        self.cpu.set_register('L', 0x80)
+        
+        # DEC L (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x2D)  # DEC L
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify L was decremented
+        self.assertEqual(self.cpu.get_register('L'), 0x7F)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is set (always 1 for DEC)
+        self.assertTrue(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (borrow from bit 4: 0x8 -> 0x7)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_dec_a(self):
+        """Test running DEC A instruction (0x3D, 4 cycles)"""
+        # Set A to 0x80 initially
+        self.cpu.set_register('A', 0x80)
+        
+        # DEC A (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x3D)  # DEC A
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify A was decremented
+        self.assertEqual(self.cpu.get_register('A'), 0x7F)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is set (always 1 for DEC)
+        self.assertTrue(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (borrow from bit 4: 0x8 -> 0x7)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_dec_a_zero_flag(self):
+        """Test running DEC A instruction with Zero flag set (0x3D, 4 cycles)"""
+        # Set A to 0x01 which will become 0x00 after decrement
+        self.cpu.set_register('A', 0x01)
+        
+        # DEC A (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x3D)  # DEC A
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify A was decremented to zero
+        self.assertEqual(self.cpu.get_register('A'), 0x00)
+        # Verify Zero flag is set (result is zero)
+        self.assertTrue(self.cpu.get_flag('Z'))
+        # Verify Negative flag is set (always 1 for DEC)
+        self.assertTrue(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is not set (no borrow from bit 4: 0x0 -> 0xF)
+        self.assertFalse(self.cpu.get_flag('H'))
+
 if __name__ == '__main__':
     unittest.main()
