@@ -19,12 +19,14 @@ from src.cpu.handlers.ld_handlers import (
     ld_l_n8,
     ld_a_n8,
     ld_de_n16,
+    ld_hl_n8,
 )
 from src.cpu.handlers.jr_handlers import jr_nz_e8
 from src.cpu.handlers.misc_handlers import nop
 from src.cpu.handlers.inc_dec_handlers import (
     dec_a, dec_b, dec_c, dec_d, dec_e, dec_h, dec_l,
     inc_a, inc_b, inc_c, inc_d, inc_e, inc_h, inc_l,
+    inc_bc, dec_bc, inc_de, dec_de, inc_hl, dec_hl,
 )
 
 class CPU:
@@ -49,16 +51,22 @@ class CPU:
             0x00: nop,
             0x01: ld_bc_n16,
             0x02: ld_bc_a,
+            0x03: inc_bc,
             0x04: inc_b,
             0x05: dec_b,
+            0x0B: dec_bc,
             0x0C: inc_c,
             0x0D: dec_c,
+            0x13: inc_de,
             0x14: inc_d,
             0x15: dec_d,
+            0x1B: dec_de,
             0x1C: inc_e,
             0x1D: dec_e,
+            0x23: inc_hl,
             0x24: inc_h,
             0x25: dec_h,
+            0x2B: dec_hl,
             0x2C: inc_l,
             0x2D: dec_l,
             0x3C: inc_a,
@@ -70,6 +78,7 @@ class CPU:
             0x1E: ld_e_n8,
             0x26: ld_h_n8,
             0x2E: ld_l_n8,
+            0x36: ld_hl_n8,
             0x3E: ld_a_n8,
             0x20: jr_nz_e8,
         }
@@ -101,10 +110,47 @@ class CPU:
         elif code == 'SP':
             return self.registers.SP
         elif code == 'PC':
-            return self.registers.PC
+             return self.registers.PC
         else:
             raise ValueError(f'Unknown register code: {code}')
 
+    def get_register_pair(self, pair_name):
+        """Return the 16-bit value of a register pair.
+        
+        Args:
+            pair_name: 'BC', 'DE', 'HL', or 'SP'
+            
+        Returns:
+            int: The 16-bit value
+        """
+        if pair_name == 'BC':
+            return self.registers.BC
+        elif pair_name == 'DE':
+            return self.registers.DE
+        elif pair_name == 'HL':
+            return self.registers.HL
+        elif pair_name == 'SP':
+            return self.registers.SP
+        else:
+            raise ValueError(f'Unknown register pair: {pair_name}')
+
+    def set_register_pair(self, pair_name, value):
+        """Set the 16-bit value of a register pair.
+        
+        Args:
+            pair_name: 'BC', 'DE', 'HL', or 'SP'
+            value: The 16-bit value to set
+        """
+        if pair_name == 'BC':
+            self.registers.BC = value
+        elif pair_name == 'DE':
+            self.registers.DE = value
+        elif pair_name == 'HL':
+            self.registers.HL = value
+        elif pair_name == 'SP':
+            self.registers.SP = value
+        else:
+            raise ValueError(f'Unknown register pair: {pair_name}')
 
     def set_register(self, code, value):
         """Set the value of a register or its high/low byte."""

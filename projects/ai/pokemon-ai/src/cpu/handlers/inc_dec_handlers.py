@@ -275,3 +275,75 @@ def dec_a(cpu, opcode_info):
     cpu.set_flag('H', (old_value & 0xF) == 0x0)
     
     return opcode_info["cycles"][0]
+
+
+def inc_bc(cpu, opcode_info):
+    """INC BC - Increment register pair BC"""
+    # Get current value of BC (16-bit register pair)
+    old_value = cpu.get_register_pair('BC')
+    new_value = (old_value + 1) & 0xFFFF
+    
+    # Set the new value in BC
+    cpu.set_register_pair('BC', new_value)
+    
+    return opcode_info["cycles"][0]
+
+
+def dec_bc(cpu, opcode_info):
+    """DEC BC - Decrement register pair BC"""
+    # Get current value of BC (16-bit register pair)
+    old_value = cpu.get_register_pair('BC')
+    new_value = (old_value - 1) & 0xFFFF
+    
+    # Set the new value in BC
+    cpu.set_register_pair('BC', new_value)
+    
+    return opcode_info["cycles"][0]
+
+
+def inc_de(cpu, opcode_info):
+    """INC DE - Increment register pair DE"""
+    # Get current value of DE (16-bit register pair)
+    old_value = cpu.get_register_pair('DE')
+    new_value = (old_value + 1) & 0xFFFF
+    
+    # Set the new value in DE
+    cpu.set_register_pair('DE', new_value)
+    
+    return opcode_info["cycles"][0]
+
+
+def dec_de(cpu, opcode_info):
+    """DEC DE - Decrement register pair DE"""
+    # Get current value of DE (16-bit register pair)
+    old_value = cpu.get_register_pair('DE')
+    new_value = (old_value - 1) & 0xFFFF
+    
+    # Set the new value in DE
+    cpu.set_register_pair('DE', new_value)
+    
+    return opcode_info["cycles"][0]
+
+
+def inc_hl(cpu, opcode_info):
+    """INC HL - Increment register pair HL"""
+    # Get current value of HL (16-bit register pair)
+    old_value = cpu.get_register_pair('HL')
+    new_value = (old_value + 1) & 0xFFFF
+    
+    # Set the new value in HL
+    cpu.set_register_pair('HL', new_value)
+    
+    return opcode_info["cycles"][0]
+
+
+def dec_hl(cpu, opcode_info):
+    """DEC HL - Decrement register pair HL"""
+    # Get current value of HL (16-bit register pair)
+    old_value = cpu.get_register_pair('HL')
+    new_value = (old_value - 1) & 0xFFFF
+    
+    # Set the new value in HL
+    cpu.set_register_pair('HL', new_value)
+    
+    return opcode_info["cycles"][0]

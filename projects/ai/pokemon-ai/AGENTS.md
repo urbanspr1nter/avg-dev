@@ -456,6 +456,100 @@ self.opcode_handlers = {
 
 **Verification**: All 75 CPU tests pass (including the new tests)
 
+### DEC HL Implementation (0x2B) and INC HL Implementation (0x23)
+**Date**: January 25, 2026
+
+**Changes Made**:
+1. Added `inc_hl()` and `dec_hl()` handler functions to `src/cpu/handlers/inc_dec_handlers.py`
+   - Both increment/decrement the HL register pair by 1
+   - Update Z flag if result is zero (only for INC)
+   - Set N flag (always set for DEC instructions, not set for INC)
+   - Update H flag for half carry/borrow
+   - Return 8 cycles each
+
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py:50`:
+   ```python
+   0x23: inc_hl
+   0x2B: dec_hl
+   ```
+
+3. Added imports for `inc_hl` and `dec_hl` functions at `src/cpu/gb_cpu.py:16`
+
+4. Added test cases to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_inc_hl(self):
+       """Test running INC HL instruction (0x23, 8 cycles)"""
+       # Set opcode at 0x0000
+       self.cpu.memory.set_value(0x0000, 0x23)  # INC HL
+       # Set HL to 0xABCD
+       self.cpu.set_register('HL', 0xABCD)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=8)
+        
+       # PC should advance by 1 (no operands)
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 8)
+       # HL should be incremented to 0xABCE
+       self.assertEqual(self.cpu.get_register('HL'), 0xABCE)
+   
+   def test_run_dec_hl(self):
+       """Test running DEC HL instruction (0x2B, 8 cycles)"""
+       # Set DEC HL opcode at address 0
+       self.cpu.memory.set_value(0x0000, 0x2B)  # DEC HL
+       # Set HL to 0x9ABC
+       self.cpu.set_register('HL', 0x9ABC)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=8)
+        
+       # PC should advance by 1 (no operands)
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 8)
+       # HL should be decremented to 0x9ABB
+       self.assertEqual(self.cpu.get_register('HL'), 0x9ABB)
+   ```
+
+**Verification**: All 86 CPU tests pass (including the new tests)
+
+### LD (HL), n8 Implementation (0x36)
+**Date**: January 25, 2026
+
+**Changes Made**:
+1. Added `ld_hl_n8()` handler function to `src/cpu/handlers/ld_handlers.py`
+   - Loads 8-bit immediate value into memory at address specified by HL register
+   - Returns 12 cycles
+
+2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:50`:
+   ```python
+   0x36: ld_hl_n8
+   ```
+
+3. Added import for `ld_hl_n8` function at `src/cpu/gb_cpu.py:16`
+
+4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_ld_hl_n8(self):
+       """Test running LD (HL), n8 instruction (0x36, 12 cycles)"""
+       # Set opcode at 0x0000
+       self.cpu.memory.set_value(0x0000, 0x36)  # LD (HL), n8
+       # Set operand value to 0x7F
+       self.cpu.memory.set_value(0x0001, 0x7F)
+       # Set HL to point to address 0xC000
+       self.cpu.set_register('HL', 0xC000)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=12)
+        
+       # PC should advance by 2: opcode (1) + operand (1)
+       self.assertEqual(self.cpu.registers.PC, 0x0002)
+       self.assertEqual(self.cpu.current_cycles, 12)
+       # Memory at address 0xC000 should contain 0x7F
+       self.assertEqual(self.cpu.memory.get_value(0xC000), 0x7F)
+   ```
+
+**Verification**: All 87 CPU tests pass (including the new test)
+
 ## Commands to Run Tests
 
 ```bash

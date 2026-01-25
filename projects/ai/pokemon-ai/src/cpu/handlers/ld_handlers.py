@@ -97,3 +97,13 @@ def ld_bc_a(cpu, opcode_info):
     a_value = cpu.get_register('A')
     cpu.memory.set_value(bc_address, a_value)
     return opcode_info["cycles"][0]
+
+
+def ld_hl_n8(cpu, opcode_info):
+    """LD (HL),n8 - Load 8-bit immediate into memory at address in HL"""
+    # operand_values[0] is HL register (indirect addressing)
+    # operand_values[1] is n8 immediate value
+    hl_address = cpu.get_register('HL')
+    value = cpu.operand_values[1]["value"]
+    cpu.memory.set_value(hl_address, value)
+    return opcode_info["cycles"][0]

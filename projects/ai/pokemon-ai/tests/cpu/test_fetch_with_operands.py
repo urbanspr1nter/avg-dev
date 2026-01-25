@@ -572,7 +572,7 @@ class TestFetchWithOperands(unittest.TestCase):
         
         self.cpu.run(max_cycles=4)
         
-        # PC should advance by 1 (opcode only)
+         # PC should advance by 1 (opcode only)
         self.assertEqual(self.cpu.registers.PC, 0x0001)
         self.assertEqual(self.cpu.current_cycles, 4)
         # Verify A was decremented to zero
@@ -583,6 +583,120 @@ class TestFetchWithOperands(unittest.TestCase):
         self.assertTrue(self.cpu.get_flag('N'))
         # Verify Half-carry flag is not set (no borrow from bit 4: 0x0 -> 0xF)
         self.assertFalse(self.cpu.get_flag('H'))
+
+    def test_run_inc_bc(self):
+        """Test running INC BC instruction (0x03, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x03)  # INC BC
+        # Set BC to 0x1234
+        self.cpu.set_register('BC', 0x1234)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # BC should be incremented to 0x1235
+        self.assertEqual(self.cpu.get_register('BC'), 0x1235)
+    
+    def test_run_dec_bc(self):
+        """Test running DEC BC instruction (0x0B, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x0B)  # DEC BC
+        # Set BC to 0x1234
+        self.cpu.set_register('BC', 0x1234)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # BC should be decremented to 0x1233
+        self.assertEqual(self.cpu.get_register('BC'), 0x1233)
+    
+    def test_run_inc_de(self):
+        """Test running INC DE instruction (0x13, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x13)  # INC DE
+        # Set DE to 0x5678
+        self.cpu.set_register('DE', 0x5678)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # DE should be incremented to 0x5679
+        self.assertEqual(self.cpu.get_register('DE'), 0x5679)
+    
+    def test_run_dec_de(self):
+        """Test running DEC DE instruction (0x1B, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x1B)  # DEC DE
+        # Set DE to 0x5678
+        self.cpu.set_register('DE', 0x5678)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # DE should be decremented to 0x5677
+        self.assertEqual(self.cpu.get_register('DE'), 0x5677)
+    
+    def test_run_inc_hl(self):
+        """Test running INC HL instruction (0x23, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x23)  # INC HL
+        # Set HL to 0xABCD
+        self.cpu.set_register('HL', 0xABCD)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # HL should be incremented to 0xABCE
+        self.assertEqual(self.cpu.get_register('HL'), 0xABCE)
+    
+    def test_run_dec_hl(self):
+        """Test running DEC HL instruction (0x2B, 8 cycles)"""
+        # Set DEC HL opcode at address 0
+        self.cpu.memory.set_value(0x0000, 0x2B)  # DEC HL
+        # Set HL to 0x9ABC
+        self.cpu.set_register('HL', 0x9ABC)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+         # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # HL should be decremented to 0x9ABB
+        self.assertEqual(self.cpu.get_register('HL'), 0x9ABB)
+
+    def test_run_ld_hl_n8(self):
+        """Test running LD (HL), n8 instruction (0x36, 12 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x36)  # LD (HL), n8
+        # Set operand value to 0x7F
+        self.cpu.memory.set_value(0x0001, 0x7F)
+        # Set HL to point to address 0xC000
+        self.cpu.set_register('HL', 0xC000)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=12)
+        
+        # PC should advance by 2: opcode (1) + operand (1)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
+        self.assertEqual(self.cpu.current_cycles, 12)
+        # Memory at address 0xC000 should contain 0x7F
+        self.assertEqual(self.cpu.memory.get_value(0xC000), 0x7F)
 
 if __name__ == '__main__':
     unittest.main()
