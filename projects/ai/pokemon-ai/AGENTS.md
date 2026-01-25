@@ -58,6 +58,70 @@ self.opcode_handlers = {
 
 ## Recent Work
 
+### LD L, n8 Implementation (0x2E)
+**Date**: January 24, 2026
+
+**Changes Made**:
+1. Added `ld_l_n8` handler function to `src/cpu/handlers/ld_handlers.py`
+   - Loads 8-bit immediate value into register L
+   - Returns 8 cycles
+
+2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
+   ```python
+   0x2E: ld_l_n8
+   ```
+
+3. Added import for `ld_l_n8` function at `src/cpu/gb_cpu.py:16`
+
+4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_ld_l_n8(self):
+       """Test running LD L, n8 instruction (0x2E, 8 cycles)"""
+       self.cpu.memory.set_value(0x0000, 0x2E)  # LD L, n8
+       self.cpu.memory.set_value(0x0001, 0x7F)  # n8 = 0x7F
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=8)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0002)
+       self.assertEqual(self.cpu.current_cycles, 8)
+       self.assertEqual(self.cpu.get_register('L'), 0x7F)
+   ```
+
+**Verification**: All 62 CPU tests pass (including the new test)
+
+### LD H, n8 Implementation (0x26)
+**Date**: January 24, 2026
+
+**Changes Made**:
+1. Added `_ld_h_n8()` handler function to `src/cpu/handlers/ld_handlers.py`
+   - Loads 8-bit immediate value into register H
+   - Returns 8 cycles
+
+2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
+   ```python
+   0x26: ld_h_n8
+   ```
+
+3. Added import for `ld_h_n8` function at `src/cpu/gb_cpu.py:16`
+
+4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_ld_h_n8(self):
+       """Test running LD H, n8 instruction (0x26, 8 cycles)"""
+       self.cpu.memory.set_value(0x0000, 0x26)  # LD H, n8
+       self.cpu.memory.set_value(0x0001, 0xFF)  # n8 = 0xFF
+       self.cpu.registers.PC = 0x0000
+       
+       self.cpu.run(max_cycles=8)
+       
+       self.assertEqual(self.cpu.registers.PC, 0x0002)
+       self.assertEqual(self.cpu.current_cycles, 8)
+       self.assertEqual(self.cpu.get_register('H'), 0xFF)
+   ```
+
+**Verification**: All 61 CPU tests pass (including the new test)
+
 ### Handler Refactoring (January 24, 2026)
 **Date**: January 24, 2026
 
@@ -135,15 +199,159 @@ self.opcode_handlers = {
        self.cpu.memory.set_value(0x0000, 0x16)  # LD D, n8
        self.cpu.memory.set_value(0x0001, 0x42)  # n8 = 0x42
        self.cpu.registers.PC = 0x0000
-       
+        
        self.cpu.run(max_cycles=8)
-       
+        
        self.assertEqual(self.cpu.registers.PC, 0x0002)
        self.assertEqual(self.cpu.current_cycles, 8)
        self.assertEqual(self.cpu.get_register('D'), 0x42)
    ```
 
 **Verification**: All 57 CPU tests pass
+
+### INC B Implementation (0x04)
+**Date**: January 24, 2026
+
+**Changes Made**:
+1. Added `inc_b()` handler function to `src/cpu/handlers/inc_dec_handlers.py`
+   - Increments register B by 1
+   - Updates Z flag if result is zero
+   - Updates H flag for half carry
+   - Returns 4 cycles
+
+2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
+   ```python
+   0x04: inc_b
+   ```
+
+3. Added import for `inc_b` function at `src/cpu/gb_cpu.py:16`
+
+4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_inc_b(self):
+       """Test running INC B instruction (0x04, 4 cycles)"""
+       self.cpu.set_register('B', 0x7F)
+       self.cpu.registers.PC = 0x0000
+       
+       self.cpu.run(max_cycles=4)
+       
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('B'), 0x80)
+   ```
+
+**Verification**: All 65 CPU tests pass (including the new test)
+
+### INC C Implementation (0x0C)
+**Date**: January 24, 2026
+
+**Changes Made**:
+1. Added `inc_c()` handler function to `src/cpu/handlers/inc_dec_handlers.py`
+   - Increments register C by 1
+   - Updates Z flag if result is zero
+   - Updates H flag for half carry
+   - Returns 4 cycles
+
+2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
+   ```python
+   0x0C: inc_c
+   ```
+
+3. Added import for `inc_c` function at `src/cpu/gb_cpu.py:16`
+
+4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_inc_c(self):
+       """Test running INC C instruction (0x0C, 4 cycles)"""
+       self.cpu.set_register('C', 0x7F)
+       self.cpu.registers.PC = 0x0000
+       
+       self.cpu.run(max_cycles=4)
+       
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('C'), 0x80)
+   ```
+
+**Verification**: All 65 CPU tests pass (including the new test)
+
+### INC D Implementation (0x14)
+**Date**: January 24, 2026
+
+**Changes Made**:
+1. Added `inc_d()` handler function to `src/cpu/handlers/inc_dec_handlers.py`
+   - Increments register D by 1
+   - Updates Z flag if result is zero
+   - Updates H flag for half carry
+   - Returns 4 cycles
+
+2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
+   ```python
+   0x14: inc_d
+   ```
+
+3. Added import for `inc_d` function at `src/cpu/gb_cpu.py:16`
+
+4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_inc_d(self):
+       """Test running INC D instruction (0x14, 4 cycles)"""
+       self.cpu.set_register('D', 0x7F)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=4)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('D'), 0x80)
+   ```
+
+**Verification**: All 65 CPU tests pass (including the new test)
+
+### INC H Implementation (0x24)
+**Date**: January 25, 2026
+
+**Changes Made**:
+1. Added `inc_h()` handler function to `src/cpu/handlers/inc_dec_handlers.py`
+   - Increments register H by 1
+   - Updates Z flag if result is zero
+   - Updates H flag for half carry
+   - Returns 4 cycles
+
+2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:50`:
+   ```python
+   0x24: inc_h
+   ```
+
+3. Added import for `inc_h` function at `src/cpu/gb_cpu.py:16`
+
+4. Added test cases to `tests/cpu/test_fetch_with_operands.py`:
+   ```python
+   def test_run_inc_h(self):
+       """Test running INC H instruction (0x24, 4 cycles)"""
+       self.cpu.set_register('H', 0x7F)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=4)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('H'), 0x80)
+   
+   def test_run_inc_h_zero_flag(self):
+       """Test running INC H instruction with Zero flag set (0x24, 4 cycles)"""
+       self.cpu.set_register('H', 0xFF)
+       self.cpu.registers.PC = 0x0000
+        
+       self.cpu.run(max_cycles=4)
+        
+       self.assertEqual(self.cpu.registers.PC, 0x0001)
+       self.assertEqual(self.cpu.current_cycles, 4)
+       self.assertEqual(self.cpu.get_register('H'), 0x00)
+       self.assertTrue(self.cpu.get_flag('Z'))
+   ```
+
+**Verification**: All 68 CPU tests pass (including the new tests)
 
 ## Commands to Run Tests
 
@@ -157,6 +365,22 @@ python -m unittest tests.cpu.test_fetch_with_operands -v
 # Run specific test method
 python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test_run_ld_d_n8 -v
 ```
+
+## Approach to Implementation
+
+To make the work more digestible and manageable, we follow this approach:
+
+1. **Break down by instruction type**: Group related opcodes together (e.g., all INC instructions, all LD instructions)
+2. **Use handler files**: Organize handlers by category in `src/cpu/handlers/` directory
+3. **Implement one opcode at a time**: Focus on completing one simple opcode before moving to the next
+4. **Write comprehensive tests**: Each new opcode gets its own test case that verifies:
+   - Correct PC advancement
+   - Accurate cycle counting
+   - Proper register/memory state changes
+5. **Verify all tests pass**: After each implementation, run the full test suite to ensure no regressions
+6. **Document changes**: Update AGENTS.md with details of what was implemented and verified
+
+This approach allows for steady progress while maintaining code quality and ensuring correctness at each step.
 
 ## Code Conventions
 

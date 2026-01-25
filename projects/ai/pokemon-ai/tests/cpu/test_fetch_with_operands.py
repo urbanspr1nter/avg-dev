@@ -262,5 +262,143 @@ class TestFetchWithOperands(unittest.TestCase):
         # Verify Half-carry flag is set (overflow from bit 3 to 4: 0xF -> 0x10)
         self.assertTrue(self.cpu.get_flag('H'))
 
+    def test_run_inc_h(self):
+        """Test running INC H instruction (0x24, 4 cycles)"""
+        # Set H to 0x7F initially
+        self.cpu.set_register('H', 0x7F)
+        
+        # INC H (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x24)  # INC H
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify H was incremented
+        self.assertEqual(self.cpu.get_register('H'), 0x80)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is clear (always 0 for INC)
+        self.assertFalse(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (overflow from bit 3 to 4: 0xF -> 0x10)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_inc_h_zero_flag(self):
+        """Test running INC H instruction with Zero flag set (0x24, 4 cycles)"""
+        # Set H to 0xFF which will wrap to 0x00 after increment
+        self.cpu.set_register('H', 0xFF)
+        
+        # INC H (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x24)  # INC H
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify H was incremented and wrapped to 0
+        self.assertEqual(self.cpu.get_register('H'), 0x00)
+        # Verify Zero flag is set (result is zero)
+        self.assertTrue(self.cpu.get_flag('Z'))
+        # Verify Negative flag is clear (always 0 for INC)
+        self.assertFalse(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (overflow from bit 3 to 4: 0xF -> 0x10)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_inc_l(self):
+        """Test running INC L instruction (0x2C, 4 cycles)"""
+        # Set L to 0x7F initially
+        self.cpu.set_register('L', 0x7F)
+        
+        # INC L (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x2C)  # INC L
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify L was incremented
+        self.assertEqual(self.cpu.get_register('L'), 0x80)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is clear (always 0 for INC)
+        self.assertFalse(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (overflow from bit 3 to 4: 0xF -> 0x10)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_inc_a(self):
+        """Test running INC A instruction (0x3C, 4 cycles)"""
+        # Set A to 0x7F initially
+        self.cpu.set_register('A', 0x7F)
+        
+        # INC A (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x3C)  # INC A
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify A was incremented
+        self.assertEqual(self.cpu.get_register('A'), 0x80)
+        # Verify Zero flag is not set (result is not zero)
+        self.assertFalse(self.cpu.get_flag('Z'))
+        # Verify Negative flag is clear (always 0 for INC)
+        self.assertFalse(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (overflow from bit 3 to 4: 0xF -> 0x10)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_inc_l_zero_flag(self):
+        """Test running INC L instruction with Zero flag set (0x2C, 4 cycles)"""
+        # Set L to 0xFF which will wrap to 0x00 after increment
+        self.cpu.set_register('L', 0xFF)
+        
+        # INC L (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x2C)  # INC L
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify L was incremented and wrapped to 0
+        self.assertEqual(self.cpu.get_register('L'), 0x00)
+        # Verify Zero flag is set (result is zero)
+        self.assertTrue(self.cpu.get_flag('Z'))
+        # Verify Negative flag is clear (always 0 for INC)
+        self.assertFalse(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (overflow from bit 3 to 4: 0xF -> 0x10)
+        self.assertTrue(self.cpu.get_flag('H'))
+
+    def test_run_inc_a_zero_flag(self):
+        """Test running INC A instruction with Zero flag set (0x3C, 4 cycles)"""
+        # Set A to 0xFF which will wrap to 0x00 after increment
+        self.cpu.set_register('A', 0xFF)
+        
+        # INC A (1 byte opcode, no operands in instruction stream)
+        self.cpu.memory.set_value(0x0000, 0x3C)  # INC A
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (opcode only)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # Verify A was incremented and wrapped to 0
+        self.assertEqual(self.cpu.get_register('A'), 0x00)
+        # Verify Zero flag is set (result is zero)
+        self.assertTrue(self.cpu.get_flag('Z'))
+        # Verify Negative flag is clear (always 0 for INC)
+        self.assertFalse(self.cpu.get_flag('N'))
+        # Verify Half-carry flag is set (overflow from bit 3 to 4: 0xF -> 0x10)
+        self.assertTrue(self.cpu.get_flag('H'))
+
 if __name__ == '__main__':
     unittest.main()

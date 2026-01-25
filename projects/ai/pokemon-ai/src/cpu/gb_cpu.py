@@ -22,7 +22,7 @@ from src.cpu.handlers.ld_handlers import (
 )
 from src.cpu.handlers.jr_handlers import jr_nz_e8
 from src.cpu.handlers.misc_handlers import nop
-from src.cpu.handlers.inc_dec_handlers import inc_b, inc_c, inc_d, inc_e
+from src.cpu.handlers.inc_dec_handlers import inc_a, inc_b, inc_c, inc_d, inc_e, inc_h, inc_l
 
 class CPU:
     def __init__(self, memory=None):
@@ -50,6 +50,9 @@ class CPU:
             0x0C: inc_c,
             0x14: inc_d,
             0x1C: inc_e,
+            0x24: inc_h,
+            0x2C: inc_l,
+            0x3C: inc_a,
             0x06: ld_b_n8,
             0x0E: ld_c_n8,
             0x11: ld_de_n16,
