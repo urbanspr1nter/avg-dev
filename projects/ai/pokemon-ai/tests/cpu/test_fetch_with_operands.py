@@ -815,6 +815,234 @@ class TestFetchWithOperands(unittest.TestCase):
         # Verify Zero flag is set (result is zero)
         self.assertTrue(self.cpu.get_flag("Z"))
 
+    def test_run_adc_a_b(self):
+        """Test running ADC A, B instruction (0x80, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x80)  # ADC A, B
+        # Set A to 0x10 and B to 0x20 (no carry)
+        self.cpu.set_register("A", 0x10)
+        self.cpu.set_register("B", 0x20)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x30 (0x10 + 0x20)
+        self.assertEqual(self.cpu.get_register("A"), 0x30)
+
+    def test_run_adc_a_b_with_carry(self):
+        """Test running ADC A, B instruction with carry flag set (0x80, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x80)  # ADC A, B
+        # Set A to 0x10 and B to 0x20 with carry flag set
+        self.cpu.set_register("A", 0x10)
+        self.cpu.set_register("B", 0x20)
+        self.cpu.set_flag("C", True)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x31 (0x10 + 0x20 + 1)
+        self.assertEqual(self.cpu.get_register("A"), 0x31)
+
+    def test_run_adc_a_c(self):
+        """Test running ADC A, C instruction (0x81, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x81)  # ADC A, C
+        # Set A to 0x15 and C to 0x25 (no carry)
+        self.cpu.set_register("A", 0x15)
+        self.cpu.set_register("C", 0x25)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x3A (0x15 + 0x25)
+        self.assertEqual(self.cpu.get_register("A"), 0x3A)
+
+    def test_run_adc_a_d(self):
+        """Test running ADC A, D instruction (0x82, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x82)  # ADC A, D
+        # Set A to 0x30 and D to 0x40 (no carry)
+        self.cpu.set_register("A", 0x30)
+        self.cpu.set_register("D", 0x40)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x70 (0x30 + 0x40)
+        self.assertEqual(self.cpu.get_register("A"), 0x70)
+
+    def test_run_adc_a_e(self):
+        """Test running ADC A, E instruction (0x83, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x83)  # ADC A, E
+        # Set A to 0x50 and E to 0x60 (no carry)
+        self.cpu.set_register("A", 0x50)
+        self.cpu.set_register("E", 0x60)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0xB0 (0x50 + 0x60)
+        self.assertEqual(self.cpu.get_register("A"), 0xB0)
+
+    def test_run_adc_a_h(self):
+        """Test running ADC A, H instruction (0x84, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x84)  # ADC A, H
+        # Set A to 0x70 and H to 0x80 (no carry)
+        self.cpu.set_register("A", 0x70)
+        self.cpu.set_register("H", 0x80)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0xF0 (0x70 + 0x80)
+        self.assertEqual(self.cpu.get_register("A"), 0xF0)
+
+    def test_run_adc_a_l(self):
+        """Test running ADC A, L instruction (0x85, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x85)  # ADC A, L
+        # Set A to 0x90 and L to 0xA0 (no carry)
+        self.cpu.set_register("A", 0x90)
+        self.cpu.set_register("L", 0xA0)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x30 (0x90 + 0xA0 = 0x130, wrap to 0x30)
+        self.assertEqual(self.cpu.get_register("A"), 0x30)
+
+    def test_run_adc_a_hl(self):
+        """Test running ADC A, (HL) instruction (0x86, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x86)  # ADC A, (HL)
+        # Set A to 0x10 and memory at HL address to 0x20 (no carry)
+        self.cpu.set_register("A", 0x10)
+        self.cpu.set_register("HL", 0xC000)
+        self.cpu.memory.set_value(0xC000, 0x20)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=8)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # A should be 0x30 (0x10 + 0x20)
+        self.assertEqual(self.cpu.get_register("A"), 0x30)
+
+    def test_run_adc_a_a(self):
+        """Test running ADC A, A instruction (0x87, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x87)  # ADC A, A
+        # Set A to 0x15 (no carry)
+        self.cpu.set_register("A", 0x15)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x2A (0x15 + 0x15)
+        self.assertEqual(self.cpu.get_register("A"), 0x2A)
+
+    def test_run_adc_a_b_zero_flag(self):
+        """Test running ADC A, B instruction with Zero flag set (0x80, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x80)  # ADC A, B
+        # Set A to 0xFF and B to 0x01 (no carry)
+        self.cpu.set_register("A", 0xFF)
+        self.cpu.set_register("B", 0x01)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x00 (0xFF + 0x01 = 0x100, wrap to 0x00)
+        self.assertEqual(self.cpu.get_register("A"), 0x00)
+        # Zero flag should be set
+        self.assertTrue(self.cpu.get_flag("Z"))
+
+    def test_run_adc_a_b_carry_flag(self):
+        """Test running ADC A, B instruction with Carry flag set (0x80, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x80)  # ADC A, B
+        # Set A to 0xFF and B to 0x01 with carry flag set
+        self.cpu.set_register("A", 0xFF)
+        self.cpu.set_register("B", 0x01)
+        self.cpu.set_flag("C", True)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x01 (0xFF + 0x01 + 1 = 0x101, wrap to 0x01)
+        self.assertEqual(self.cpu.get_register("A"), 0x01)
+
+    def test_run_adc_a_b_half_carry_flag(self):
+        """Test running ADC A, B instruction with Half Carry flag set (0x80, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x80)  # ADC A, B
+        # Set A to 0x0F and B to 0x01 (no carry)
+        self.cpu.set_register("A", 0x0F)
+        self.cpu.set_register("B", 0x01)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x10 (0x0F + 0x01)
+        self.assertEqual(self.cpu.get_register("A"), 0x10)
+        # Half carry flag should be set
+        self.assertTrue(self.cpu.get_flag("H"))
+
+    def test_run_adc_a_b_carry_and_half_carry_flags(self):
+        """Test running ADC A, B instruction with both Carry and Half Carry flags set (0x80, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x80)  # ADC A, B
+        # Set A to 0xFF and B to 0x0F with carry flag set
+        self.cpu.set_register("A", 0xFF)
+        self.cpu.set_register("B", 0x0F)
+        self.cpu.set_flag("C", True)
+        self.cpu.registers.PC = 0x0000
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should be 0x0F (0xFF + 0x0F + 1 = 0x10F, wrap to 0x0F)
+        self.assertEqual(self.cpu.get_register("A"), 0x0F)
+
 
 if __name__ == "__main__":
     unittest.main()

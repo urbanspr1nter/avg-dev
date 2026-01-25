@@ -23,6 +23,16 @@ from src.cpu.handlers.ld_handlers import (
 )
 from src.cpu.handlers.jr_handlers import jr_nz_e8
 from src.cpu.handlers.misc_handlers import nop
+from src.cpu.handlers.arith_handlers import (
+    adc_a_b,
+    adc_a_c,
+    adc_a_d,
+    adc_a_e,
+    adc_a_h,
+    adc_a_l,
+    adc_a_a,
+    adc_a_hl,
+)
 from src.cpu.handlers.inc_dec_handlers import (
     dec_a,
     dec_b,
@@ -108,6 +118,14 @@ class CPU:
             0x36: ld_hl_n8,
             0x3E: ld_a_n8,
             0x20: jr_nz_e8,
+            0x80: adc_a_b,
+            0x81: adc_a_c,
+            0x82: adc_a_d,
+            0x83: adc_a_e,
+            0x84: adc_a_h,
+            0x85: adc_a_l,
+            0x86: adc_a_hl,
+            0x87: adc_a_a,
         }
 
     def get_register(self, code):
