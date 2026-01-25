@@ -24,10 +24,32 @@ from src.cpu.handlers.ld_handlers import (
 from src.cpu.handlers.jr_handlers import jr_nz_e8
 from src.cpu.handlers.misc_handlers import nop
 from src.cpu.handlers.inc_dec_handlers import (
-    dec_a, dec_b, dec_c, dec_d, dec_e, dec_h, dec_l,
-    inc_a, inc_b, inc_c, inc_d, inc_e, inc_h, inc_l,
-    inc_bc, dec_bc, inc_de, dec_de, inc_hl, dec_hl,
+    dec_a,
+    dec_b,
+    dec_c,
+    dec_d,
+    dec_e,
+    dec_h,
+    dec_l,
+    inc_a,
+    inc_b,
+    inc_c,
+    inc_d,
+    inc_e,
+    inc_h,
+    inc_l,
+    inc_bc,
+    dec_bc,
+    inc_de,
+    dec_de,
+    inc_hl,
+    dec_hl,
+    inc_sp,
+    dec_sp,
+    inc_hl_indirect,
+    dec_hl_indirect,
 )
+
 
 class CPU:
     def __init__(self, memory=None):
@@ -42,6 +64,7 @@ class CPU:
         # Memory instance can be injected for testing or real use.
         if memory is None:
             from src.memory.gb_memory import Memory
+
             self.memory = Memory()
         else:
             self.memory = memory
@@ -69,6 +92,10 @@ class CPU:
             0x2B: dec_hl,
             0x2C: inc_l,
             0x2D: dec_l,
+            0x33: inc_sp,
+            0x34: inc_hl_indirect,
+            0x35: dec_hl_indirect,
+            0x3B: dec_sp,
             0x3C: inc_a,
             0x3D: dec_a,
             0x06: ld_b_n8,
@@ -85,159 +112,159 @@ class CPU:
 
     def get_register(self, code):
         """Return the value of a register or its high/low byte."""
-        if code == 'AF':
+        if code == "AF":
             return self.registers.AF
-        elif code == 'A':
+        elif code == "A":
             return (self.registers.AF >> 8) & 0xFF
-        elif code == 'BC':
+        elif code == "BC":
             return self.registers.BC
-        elif code == 'B':
+        elif code == "B":
             return (self.registers.BC >> 8) & 0xFF
-        elif code == 'C':
+        elif code == "C":
             return self.registers.BC & 0xFF
-        elif code == 'DE':
+        elif code == "DE":
             return self.registers.DE
-        elif code == 'D':
+        elif code == "D":
             return (self.registers.DE >> 8) & 0xFF
-        elif code == 'E':
+        elif code == "E":
             return self.registers.DE & 0xFF
-        elif code == 'HL':
+        elif code == "HL":
             return self.registers.HL
-        elif code == 'H':
+        elif code == "H":
             return (self.registers.HL >> 8) & 0xFF
-        elif code == 'L':
+        elif code == "L":
             return self.registers.HL & 0xFF
-        elif code == 'SP':
+        elif code == "SP":
             return self.registers.SP
-        elif code == 'PC':
-             return self.registers.PC
+        elif code == "PC":
+            return self.registers.PC
         else:
-            raise ValueError(f'Unknown register code: {code}')
+            raise ValueError(f"Unknown register code: {code}")
 
     def get_register_pair(self, pair_name):
         """Return the 16-bit value of a register pair.
-        
+
         Args:
             pair_name: 'BC', 'DE', 'HL', or 'SP'
-            
+
         Returns:
             int: The 16-bit value
         """
-        if pair_name == 'BC':
+        if pair_name == "BC":
             return self.registers.BC
-        elif pair_name == 'DE':
+        elif pair_name == "DE":
             return self.registers.DE
-        elif pair_name == 'HL':
+        elif pair_name == "HL":
             return self.registers.HL
-        elif pair_name == 'SP':
+        elif pair_name == "SP":
             return self.registers.SP
         else:
-            raise ValueError(f'Unknown register pair: {pair_name}')
+            raise ValueError(f"Unknown register pair: {pair_name}")
 
     def set_register_pair(self, pair_name, value):
         """Set the 16-bit value of a register pair.
-        
+
         Args:
             pair_name: 'BC', 'DE', 'HL', or 'SP'
             value: The 16-bit value to set
         """
-        if pair_name == 'BC':
+        if pair_name == "BC":
             self.registers.BC = value
-        elif pair_name == 'DE':
+        elif pair_name == "DE":
             self.registers.DE = value
-        elif pair_name == 'HL':
+        elif pair_name == "HL":
             self.registers.HL = value
-        elif pair_name == 'SP':
+        elif pair_name == "SP":
             self.registers.SP = value
         else:
-            raise ValueError(f'Unknown register pair: {pair_name}')
+            raise ValueError(f"Unknown register pair: {pair_name}")
 
     def set_register(self, code, value):
         """Set the value of a register or its high/low byte."""
-        if code == 'AF':
+        if code == "AF":
             self.registers.AF = value
-        elif code == 'A':
+        elif code == "A":
             self.registers.AF = ((value & 0xFF) << 8) | (self.registers.AF & 0x00FF)
-        elif code == 'BC':
+        elif code == "BC":
             self.registers.BC = value
-        elif code == 'B':
+        elif code == "B":
             self.registers.BC = ((value & 0xFF) << 8) | (self.registers.BC & 0x00FF)
-        elif code == 'C':
+        elif code == "C":
             self.registers.BC = (self.registers.BC & 0xFF00) | (value & 0xFF)
-        elif code == 'DE':
+        elif code == "DE":
             self.registers.DE = value
-        elif code == 'D':
+        elif code == "D":
             self.registers.DE = ((value & 0xFF) << 8) | (self.registers.DE & 0x00FF)
-        elif code == 'E':
+        elif code == "E":
             self.registers.DE = (self.registers.DE & 0xFF00) | (value & 0xFF)
-        elif code == 'HL':
+        elif code == "HL":
             self.registers.HL = value
-        elif code == 'H':
+        elif code == "H":
             self.registers.HL = ((value & 0xFF) << 8) | (self.registers.HL & 0x00FF)
-        elif code == 'L':
+        elif code == "L":
             self.registers.HL = (self.registers.HL & 0xFF00) | (value & 0xFF)
-        elif code == 'SP':
+        elif code == "SP":
             self.registers.SP = value
-        elif code == 'PC':
+        elif code == "PC":
             self.registers.PC = value
         else:
-            raise ValueError(f'Unknown register code: {code}')
+            raise ValueError(f"Unknown register code: {code}")
 
     # Flag manipulation helpers
 
     def get_flag(self, flag):
         """Get the value of a CPU flag.
-        
+
         Args:
             flag: 'Z', 'N', 'H', or 'C'
-        
+
         Returns:
             bool: True if flag is set, False otherwise
         """
         flags = self.registers.AF & 0xFF
-        if flag == 'Z':
+        if flag == "Z":
             return (flags & 0x80) != 0
-        elif flag == 'N':
+        elif flag == "N":
             return (flags & 0x40) != 0
-        elif flag == 'H':
+        elif flag == "H":
             return (flags & 0x20) != 0
-        elif flag == 'C':
+        elif flag == "C":
             return (flags & 0x10) != 0
         else:
-            raise ValueError(f'Unknown flag: {flag}')
+            raise ValueError(f"Unknown flag: {flag}")
 
     def set_flag(self, flag, value):
         """Set a CPU flag to a specific value.
-        
+
         Args:
             flag: 'Z', 'N', 'H', or 'C'
             value: bool or int (0/1) - True/1 to set, False/0 to clear
         """
         flags = self.registers.AF & 0xFF
-        
-        if flag == 'Z':
+
+        if flag == "Z":
             if value:
                 flags |= 0x80
             else:
                 flags &= ~0x80
-        elif flag == 'N':
+        elif flag == "N":
             if value:
                 flags |= 0x40
             else:
                 flags &= ~0x40
-        elif flag == 'H':
+        elif flag == "H":
             if value:
                 flags |= 0x20
             else:
                 flags &= ~0x20
-        elif flag == 'C':
+        elif flag == "C":
             if value:
                 flags |= 0x10
             else:
                 flags &= ~0x10
         else:
-            raise ValueError(f'Unknown flag: {flag}')
-        
+            raise ValueError(f"Unknown flag: {flag}")
+
         # Update AF register with new flags (preserve A register in high byte)
         self.registers.AF = (self.registers.AF & 0xFF00) | flags
 
@@ -245,10 +272,10 @@ class CPU:
 
     def calc_zero_flag(self, result):
         """Calculate Zero flag based on result.
-        
+
         Args:
             result: int - The result value to check
-        
+
         Returns:
             bool: True if result is 0, False otherwise
         """
@@ -256,12 +283,12 @@ class CPU:
 
     def calc_half_carry_add_8bit(self, a, b, carry=0):
         """Calculate Half-carry flag for 8-bit addition.
-        
+
         Args:
             a: int - First operand
             b: int - Second operand
             carry: int - Carry in (0 or 1)
-        
+
         Returns:
             bool: True if carry from bit 3 to bit 4, False otherwise
         """
@@ -269,12 +296,12 @@ class CPU:
 
     def calc_carry_add_8bit(self, a, b, carry=0):
         """Calculate Carry flag for 8-bit addition.
-        
+
         Args:
             a: int - First operand
             b: int - Second operand
             carry: int - Carry in (0 or 1)
-        
+
         Returns:
             bool: True if carry from bit 7, False otherwise
         """
@@ -282,12 +309,12 @@ class CPU:
 
     def calc_half_carry_sub_8bit(self, a, b, carry=0):
         """Calculate Half-carry flag for 8-bit subtraction.
-        
+
         Args:
             a: int - First operand (minuend)
             b: int - Second operand (subtrahend)
             carry: int - Borrow in (0 or 1)
-        
+
         Returns:
             bool: True if borrow from bit 4, False otherwise
         """
@@ -295,12 +322,12 @@ class CPU:
 
     def calc_carry_sub_8bit(self, a, b, carry=0):
         """Calculate Carry flag for 8-bit subtraction.
-        
+
         Args:
             a: int - First operand (minuend)
             b: int - Second operand (subtrahend)
             carry: int - Borrow in (0 or 1)
-        
+
         Returns:
             bool: True if borrow occurred, False otherwise
         """
@@ -308,11 +335,11 @@ class CPU:
 
     def calc_half_carry_add_16bit(self, a, b):
         """Calculate Half-carry flag for 16-bit addition.
-        
+
         Args:
             a: int - First operand
             b: int - Second operand
-        
+
         Returns:
             bool: True if carry from bit 11 to bit 12, False otherwise
         """
@@ -320,11 +347,11 @@ class CPU:
 
     def calc_carry_add_16bit(self, a, b):
         """Calculate Carry flag for 16-bit addition.
-        
+
         Args:
             a: int - First operand
             b: int - Second operand
-        
+
         Returns:
             bool: True if carry from bit 15, False otherwise
         """
@@ -334,10 +361,10 @@ class CPU:
 
     def push_word(self, value):
         """Push a 16-bit word onto the stack.
-        
+
         The stack grows downward in memory. SP is decremented by 2,
         then the word is written in little-endian format.
-        
+
         Args:
             value: int - 16-bit value to push
         """
@@ -348,9 +375,9 @@ class CPU:
 
     def pop_word(self):
         """Pop a 16-bit word from the stack.
-        
+
         The word is read in little-endian format, then SP is incremented by 2.
-        
+
         Returns:
             int: 16-bit value popped from stack
         """
@@ -359,8 +386,6 @@ class CPU:
         high = self.memory.get_value(self.registers.SP)
         self.registers.SP = (self.registers.SP + 1) & 0xFFFF
         return (high << 8) | low
-
-
 
     def fetch_byte(self, address):
         """Fetch a single byte from memory at the given address."""
@@ -379,7 +404,6 @@ class CPU:
         return opcode
 
     def run(self, max_cycles=-1):
-
         while True:
             if max_cycles >= 0 and self.current_cycles >= max_cycles:
                 break
@@ -389,7 +413,7 @@ class CPU:
             """Execute one CPU instruction cycle."""
             # Fetch the opcode
             opcode = self.fetch()
-        
+
             # Look up the opcode in our database
             opcode_info = None
 
@@ -402,17 +426,17 @@ class CPU:
                 opcode_info = self.opcodes_db["cbprefixed"].get(f"0x{opcode:02X}")
             else:
                 opcode_info = self.opcodes_db["unprefixed"].get(f"0x{opcode:02X}")
-        
+
             # If we don't have the opcode implemented, raise an exception
             if opcode_info is None:
-                raise NotImplementedError(f'Opcode {opcode:#04x} not implemented')
+                raise NotImplementedError(f"Opcode {opcode:#04x} not implemented")
 
             # Fetch and construct operand dictionaries
             operands = opcode_info["operands"]
             for operand in operands:
                 operand_name = operand["name"]
                 operand_immediate = operand["immediate"]
-                
+
                 if "bytes" in operand:
                     # Operand has data to fetch from instruction stream
                     num_bytes_for_operand = operand["bytes"]
@@ -421,41 +445,49 @@ class CPU:
                     elif num_bytes_for_operand == 2:
                         fetched_value = self.fetch_word(self.registers.PC)
                     else:
-                        raise ValueError("Not implemented yet to fetch more than 2 bytes.")
-                    
+                        raise ValueError(
+                            "Not implemented yet to fetch more than 2 bytes."
+                        )
+
                     self.registers.PC = (self.registers.PC + operand["bytes"]) & 0xFFFF
-                    
+
                     # Determine operand type
                     if operand_name == "a16":
                         operand_type = "immediate_address"
                     else:
                         # n8, n16, e8, r8
                         operand_type = "immediate_value"
-                    
-                    self.operand_values.append({
-                        "name": operand_name,
-                        "value": fetched_value,
-                        "immediate": operand_immediate,
-                        "type": operand_type
-                    })
+
+                    self.operand_values.append(
+                        {
+                            "name": operand_name,
+                            "value": fetched_value,
+                            "immediate": operand_immediate,
+                            "type": operand_type,
+                        }
+                    )
                 else:
                     # Register operand (no bytes to fetch)
                     if operand_immediate:
                         operand_type = "register"
                     else:
                         operand_type = "register_indirect"
-                    
-                    self.operand_values.append({
-                        "name": operand_name,
-                        "value": operand_name,
-                        "immediate": operand_immediate,
-                        "type": operand_type
-                    })
+
+                    self.operand_values.append(
+                        {
+                            "name": operand_name,
+                            "value": operand_name,
+                            "immediate": operand_immediate,
+                            "type": operand_type,
+                        }
+                    )
 
             # Dispatch to the handler and accumulate cycles
             handler = self.opcode_handlers.get(opcode)
             if handler is None:
-                raise NotImplementedError(f'Handler for opcode {opcode:#04x} not implemented')
-            
+                raise NotImplementedError(
+                    f"Handler for opcode {opcode:#04x} not implemented"
+                )
+
             cycles_used = handler(self, opcode_info)
-            self.current_cycles += cycles_used 
+            self.current_cycles += cycles_used

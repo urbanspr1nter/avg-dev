@@ -586,3 +586,4 @@ This approach allows for steady progress while maintaining code quality and ensu
 3. **Testing**: Comprehensive unit tests for all new functionality
 4. **Cycle Accuracy**: Must match official Gameboy CPU cycle counts
 5. **Memory Safety**: All memory accesses must be bounded (0x0000-0xFFFF)
+6. **Searching**: Use Kagi Search MCP tool if prompted to search for things outside of your knowledge base or repo
