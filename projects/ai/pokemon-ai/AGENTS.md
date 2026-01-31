@@ -247,3 +247,39 @@ This approach allows for steady progress while maintaining code quality and ensu
 4. **Cycle Accuracy**: Must match official Gameboy CPU cycle counts
 5. **Memory Safety**: All memory accesses must be bounded (0x0000-0xFFFF)
 6. **Searching**: Use Kagi Search MCP tool if prompted to search for things outside of your knowledge base or repo
+
+## Next Steps
+
+### Recommended Opcodes to Implement Next
+
+Based on the current implementation pattern and code organization, here are the next easiest sets of opcodes to implement:
+
+#### 1. **AND A, xx (0xA0-0xA7, 0xE6)** - Bitwise AND operations
+   - Simple bitwise operations similar to ADD/SUB but with different flag behavior
+   - All set N and H flags to False, C flag to False, Z flag based on result
+   - Good candidate for implementing after arithmetic ops
+
+#### 2. **OR A, xx (0xB0-0xB7, 0xF6)** - Bitwise OR operations  
+   - Similar structure to AND but different flag behavior
+   - Set N and H flags to False, C flag to False, Z flag based on result
+
+#### 3. **XOR A, xx (0xA8-0xAF, 0xEE)** - Bitwise XOR operations
+   - Similar structure with yet another flag pattern
+   - Set N and H flags to False, C flag to False, Z flag based on result
+
+#### 4. **CP A, xx (0xB8-0xBF, 0xFE)** - Compare operations
+   - Similar to SUB but doesn't store result, only sets flags
+   - Set N and H flags based on subtraction, C flag for borrow, Z if equal
+
+These opcodes follow a similar pattern to the recently implemented ADD/ADC/SUB/SBC instructions:
+- Register operands (0xA0-0xAF): 4 cycles
+- Memory operand (HL): 8 cycles  
+- Immediate operand: 8 cycles
+- All are 8-bit operations on register A
+
+The implementation would follow the same pattern:
+1. Add handler functions to `src/cpu/handlers/arith_handlers.py`
+2. Register in dispatch table at `src/cpu/gb_cpu.py`
+3. Add imports
+4. Write comprehensive tests
+5. Verify all tests pass
