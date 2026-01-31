@@ -1341,6 +1341,351 @@ class TestFetchWithOperands(unittest.TestCase):
         # A should be 0x0F (0xFF + 0x0F + 1 = 0x10F, wrap to 0x0F)
         self.assertEqual(self.cpu.get_register("A"), 0x0F)
 
-
+    def test_run_sub_a_b(self):
+        """Test running SUB A, B instruction (0x90, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x90)  # SUB A, B
+        # Set A to 0x10 and B to 0x05
+        self.cpu.set_register('A', 0x10)
+        self.cpu.set_register('B', 0x05)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x0B (0x10 - 0x05)
+        self.assertEqual(self.cpu.get_register('A'), 0x0B)
+    
+    def test_run_sub_a_b_zero_flag(self):
+        """Test running SUB A, B instruction with Zero flag set (0x90, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x90)  # SUB A, B
+        # Set A to 0x05 and B to 0x05 (result will be zero)
+        self.cpu.set_register('A', 0x05)
+        self.cpu.set_register('B', 0x05)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x00
+        self.assertEqual(self.cpu.get_register('A'), 0x00)
+        # Z flag should be set
+        self.assertTrue(self.cpu.get_flag('Z'))
+    
+    def test_run_sub_a_c(self):
+        """Test running SUB A, C instruction (0x91, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x91)  # SUB A, C
+        # Set A to 0x20 and C to 0x0A
+        self.cpu.set_register('A', 0x20)
+        self.cpu.set_register('C', 0x0A)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x16 (0x20 - 0x0A)
+        self.assertEqual(self.cpu.get_register('A'), 0x16)
+    
+    def test_run_sub_a_d(self):
+        """Test running SUB A, D instruction (0x92, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x92)  # SUB A, D
+        # Set A to 0x30 and D to 0x15
+        self.cpu.set_register('A', 0x30)
+        self.cpu.set_register('D', 0x15)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x1B (0x30 - 0x15)
+        self.assertEqual(self.cpu.get_register('A'), 0x1B)
+    
+    def test_run_sub_a_e(self):
+        """Test running SUB A, E instruction (0x93, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x93)  # SUB A, E
+        # Set A to 0x40 and E to 0x25
+        self.cpu.set_register('A', 0x40)
+        self.cpu.set_register('E', 0x25)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x1B (0x40 - 0x25)
+        self.assertEqual(self.cpu.get_register('A'), 0x1B)
+    
+    def test_run_sub_a_h(self):
+        """Test running SUB A, H instruction (0x94, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x94)  # SUB A, H
+        # Set A to 0x50 and H to 0x30
+        self.cpu.set_register('A', 0x50)
+        self.cpu.set_register('H', 0x30)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x20 (0x50 - 0x30)
+        self.assertEqual(self.cpu.get_register('A'), 0x20)
+    
+    def test_run_sub_a_l(self):
+        """Test running SUB A, L instruction (0x95, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x95)  # SUB A, L
+        # Set A to 0x60 and L to 0x20
+        self.cpu.set_register('A', 0x60)
+        self.cpu.set_register('L', 0x20)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x40 (0x60 - 0x20)
+        self.assertEqual(self.cpu.get_register('A'), 0x40)
+    
+    def test_run_sub_a_hl(self):
+        """Test running SUB A, (HL) instruction (0x96, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x96)  # SUB A, (HL)
+        # Set A to 0x30
+        self.cpu.set_register('A', 0x30)
+        # Set HL to point to address 0xC000 and set memory value to 0x10
+        self.cpu.set_register('HL', 0xC000)
+        self.cpu.memory.set_value(0xC000, 0x10)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # A should contain 0x20 (0x30 - 0x10)
+        self.assertEqual(self.cpu.get_register('A'), 0x20)
+    
+    def test_run_sub_a_a(self):
+        """Test running SUB A, A instruction (0x97, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x97)  # SUB A, A
+        # Set A to 0x42
+        self.cpu.set_register('A', 0x42)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x00 (any value minus itself is zero)
+        self.assertEqual(self.cpu.get_register('A'), 0x00)
+    
+    def test_run_sub_a_n8(self):
+        """Test running SUB A, n8 instruction (0xD6, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0xD6)  # SUB A, n8
+        # Set operand value to 0x10
+        self.cpu.memory.set_value(0x0001, 0x10)
+        # Set A to 0x25
+        self.cpu.set_register('A', 0x25)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 2: opcode (1) + operand (1)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # A should contain 0x15 (0x25 - 0x10)
+        self.assertEqual(self.cpu.get_register('A'), 0x15)
+    
+    def test_run_sbc_a_b(self):
+        """Test running SBC A, B instruction (0x98, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x98)  # SBC A, B
+        # Set A to 0x15 and B to 0x0A
+        self.cpu.set_register('A', 0x15)
+        self.cpu.set_register('B', 0x0A)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x0B (0x15 - 0x0A = 0x0B, no carry)
+        self.assertEqual(self.cpu.get_register('A'), 0x0B)
+    
+    def test_run_sbc_a_b_with_carry(self):
+        """Test running SBC A, B instruction with Carry flag set (0x98, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x98)  # SBC A, B
+        # Set A to 0x15 and B to 0x0A, with carry flag set
+        self.cpu.set_register('A', 0x15)
+        self.cpu.set_register('B', 0x0A)
+        self.cpu.set_flag('C', True)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x0A (0x15 - 0x0A - 1 = 0x0A)
+        self.assertEqual(self.cpu.get_register('A'), 0x0A)
+    
+    def test_run_sbc_a_c(self):
+        """Test running SBC A, C instruction (0x99, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x99)  # SBC A, C
+        # Set A to 0x25 and C to 0x10
+        self.cpu.set_register('A', 0x25)
+        self.cpu.set_register('C', 0x10)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x15 (0x25 - 0x10 = 0x15)
+        self.assertEqual(self.cpu.get_register('A'), 0x15)
+    
+    def test_run_sbc_a_d(self):
+        """Test running SBC A, D instruction (0x9A, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x9A)  # SBC A, D
+        # Set A to 0x35 and D to 0x15
+        self.cpu.set_register('A', 0x35)
+        self.cpu.set_register('D', 0x15)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x20 (0x35 - 0x15 = 0x20)
+        self.assertEqual(self.cpu.get_register('A'), 0x20)
+    
+    def test_run_sbc_a_e(self):
+        """Test running SBC A, E instruction (0x9B, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x9B)  # SBC A, E
+        # Set A to 0x45 and E to 0x20
+        self.cpu.set_register('A', 0x45)
+        self.cpu.set_register('E', 0x20)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x25 (0x45 - 0x20 = 0x25)
+        self.assertEqual(self.cpu.get_register('A'), 0x25)
+    
+    def test_run_sbc_a_h(self):
+        """Test running SBC A, H instruction (0x9C, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x9C)  # SBC A, H
+        # Set A to 0x55 and H to 0x30
+        self.cpu.set_register('A', 0x55)
+        self.cpu.set_register('H', 0x30)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x25 (0x55 - 0x30 = 0x25)
+        self.assertEqual(self.cpu.get_register('A'), 0x25)
+    
+    def test_run_sbc_a_l(self):
+        """Test running SBC A, L instruction (0x9D, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x9D)  # SBC A, L
+        # Set A to 0x65 and L to 0x40
+        self.cpu.set_register('A', 0x65)
+        self.cpu.set_register('L', 0x40)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x25 (0x65 - 0x40 = 0x25)
+        self.assertEqual(self.cpu.get_register('A'), 0x25)
+    
+    def test_run_sbc_a_hl(self):
+        """Test running SBC A, (HL) instruction (0x9E, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x9E)  # SBC A, (HL)
+        # Set A to 0x35
+        self.cpu.set_register('A', 0x35)
+        # Set HL to point to address 0xC000 and set memory value to 0x10
+        self.cpu.set_register('HL', 0xC000)
+        self.cpu.memory.set_value(0xC000, 0x10)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # A should contain 0x25 (0x35 - 0x10 = 0x25)
+        self.assertEqual(self.cpu.get_register('A'), 0x25)
+    
+    def test_run_sbc_a_a(self):
+        """Test running SBC A, A instruction (0x9F, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x9F)  # SBC A, A
+        # Set A to 0x42
+        self.cpu.set_register('A', 0x42)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=4)
+        
+        # PC should advance by 1 (no operands)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        # A should contain 0x00 when C=0
+        self.assertEqual(self.cpu.get_register('A'), 0x00)
+    
+    def test_run_sbc_a_n8(self):
+        """Test running SBC A, n8 instruction (0xDE, 8 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0xDE)  # SBC A, n8
+        # Set operand value to 0x15
+        self.cpu.memory.set_value(0x0001, 0x15)
+        # Set A to 0x30
+        self.cpu.set_register('A', 0x30)
+        self.cpu.registers.PC = 0x0000
+        
+        self.cpu.run(max_cycles=8)
+        
+        # PC should advance by 2: opcode (1) + operand (1)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
+        self.assertEqual(self.cpu.current_cycles, 8)
+        # A should contain 0x1B (0x30 - 0x15 = 0x1B)
+        self.assertEqual(self.cpu.get_register('A'), 0x1B)
 if __name__ == "__main__":
     unittest.main()

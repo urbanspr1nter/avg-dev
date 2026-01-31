@@ -58,6 +58,73 @@ self.opcode_handlers = {
 
 ## Recent Work
 
+### SUB/SBC Implementations (0x90-0x9F, 0xD6, 0xDE)
+**Date**: January 31, 2026
+
+**Changes Made**:
+1. Added handler functions to `src/cpu/handlers/arith_handlers.py`:
+   - SUB instructions (0x90-0x97, 0xD6):
+     - `sub_a_b()`: SUB A, B (0x90) - Subtract B from A
+     - `sub_a_c()`: SUB A, C (0x91) - Subtract C from A
+     - `sub_a_d()`: SUB A, D (0x92) - Subtract D from A
+     - `sub_a_e()`: SUB A, E (0x93) - Subtract E from A
+     - `sub_a_h()`: SUB A, H (0x94) - Subtract H from A
+     - `sub_a_l()`: SUB A, L (0x95) - Subtract L from A
+     - `sub_a_hl()`: SUB A, (HL) (0x96) - Subtract value at memory address HL from A
+     - `sub_a_a()`: SUB A, A (0x97) - Subtract A from A (always results in 0)
+     - `sub_a_n8()`: SUB A, n8 (0xD6) - Subtract immediate byte from A
+   
+   - SBC instructions (0x98-0x9F, 0xDE):
+     - `sbc_a_b()`: SBC A, B (0x98) - Subtract B from A with carry
+     - `sbc_a_c()`: SBC A, C (0x99) - Subtract C from A with carry
+     - `sbc_a_d()`: SBC A, D (0x9A) - Subtract D from A with carry
+     - `sbc_a_e()`: SBC A, E (0x9B) - Subtract E from A with carry
+     - `sbc_a_h()`: SBC A, H (0x9C) - Subtract H from A with carry
+     - `sbc_a_l()`: SBC A, L (0x9D) - Subtract L from A with carry
+     - `sbc_a_hl()`: SBC A, (HL) (0x9E) - Subtract value at memory address HL from A with carry
+     - `sbc_a_a()`: SBC A, A (0x9F) - Subtract A from A with carry
+     - `sbc_a_n8()`: SBC A, n8 (0xDE) - Subtract immediate byte from A with carry
+  
+  All handlers:
+  - Perform 8-bit subtraction (with optional carry for SBC)
+  - Update Z flag if result is zero
+  - Set N flag to True (always set for SUB/SBC instructions)
+  - Update H flag for half borrow
+  - Update C flag for borrow/carry
+  - Return appropriate cycle count (4 cycles for register operands, 8 cycles for memory/immediate)
+
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
+   ```python
+   0x90: sub_a_b
+   0x91: sub_a_c
+   0x92: sub_a_d
+   0x93: sub_a_e
+   0x94: sub_a_h
+   0x95: sub_a_l
+   0x96: sub_a_hl
+   0x97: sub_a_a
+   0xD6: sub_a_n8
+   0x98: sbc_a_b
+   0x99: sbc_a_c
+   0x9A: sbc_a_d
+   0x9B: sbc_a_e
+   0x9C: sbc_a_h
+   0x9D: sbc_a_l
+   0x9E: sbc_a_hl
+   0x9F: sbc_a_a
+   0xDE: sbc_a_n8
+   ```
+
+3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+
+4. Added comprehensive test cases to `tests/cpu/test_fetch_with_operands.py`:
+   - Basic functionality tests for each SUB A, xx and SBC A, xx instruction
+   - Flag manipulation tests (Z, N, H, C flags)
+   - Tests verify correct PC advancement and cycle counting
+   - Tests with carry flag set for SBC instructions
+
+**Verification**: All 143 CPU tests pass (including the new tests)
+
 ### ADD A, xx Implementations (0x80-0x87, 0xC6)
 **Date**: January 31, 2026
 
@@ -72,7 +139,7 @@ self.opcode_handlers = {
    - `add_a_hl()`: ADD A, (HL) (0x86) - Add value at memory address HL to A
    - `add_a_a()`: ADD A, A (0x87) - Add A to A (equivalent to A << 1)
    - `add_a_n8()`: ADD A, n8 (0xC6) - Add immediate byte to A
-   
+  
   All handlers:
   - Perform 8-bit addition
   - Update Z flag if result is zero

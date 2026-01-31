@@ -443,3 +443,372 @@ def add_a_hl(cpu, opcode_info) -> int:
     cpu.set_register("A", result & 0xFF)
 
     return opcode_info["cycles"][0]
+
+def sub_a_b(cpu, opcode_info) -> int:
+    """SUB A, B - Subtract B from A"""
+    a_value = cpu.get_register("A")
+    b_value = cpu.get_register("B")
+
+    # Perform subtraction
+    result = a_value - b_value
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (b_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sub_a_c(cpu, opcode_info) -> int:
+    """SUB A, C - Subtract C from A"""
+    a_value = cpu.get_register("A")
+    c_value = cpu.get_register("C")
+
+    # Perform subtraction
+    result = a_value - c_value
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (c_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sub_a_d(cpu, opcode_info) -> int:
+    """SUB A, D - Subtract D from A"""
+    a_value = cpu.get_register("A")
+    d_value = cpu.get_register("D")
+
+    # Perform subtraction
+    result = a_value - d_value
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (d_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sub_a_e(cpu, opcode_info) -> int:
+    """SUB A, E - Subtract E from A"""
+    a_value = cpu.get_register("A")
+    e_value = cpu.get_register("E")
+
+    # Perform subtraction
+    result = a_value - e_value
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (e_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sub_a_h(cpu, opcode_info) -> int:
+    """SUB A, H - Subtract H from A"""
+    a_value = cpu.get_register("A")
+    h_value = cpu.get_register("H")
+
+    # Perform subtraction
+    result = a_value - h_value
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (h_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sub_a_l(cpu, opcode_info) -> int:
+    """SUB A, L - Subtract L from A"""
+    a_value = cpu.get_register("A")
+    l_value = cpu.get_register("L")
+
+    # Perform subtraction
+    result = a_value - l_value
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (l_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sub_a_hl(cpu, opcode_info) -> int:
+    """SUB A, (HL) - Subtract memory at HL from A"""
+    a_value = cpu.get_register("A")
+    hl_address = cpu.get_register_pair("HL")
+    hl_value = cpu.memory.get_value(hl_address)
+
+    # Perform subtraction
+    result = a_value - hl_value
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (hl_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sub_a_a(cpu, opcode_info) -> int:
+    """SUB A, A - Subtract A from A (always results in 0)"""
+    a_value = cpu.get_register("A")
+
+    # Perform subtraction
+    result = a_value - a_value
+
+    # Update flags
+    cpu.set_flag("Z", True)  # Result is always zero
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", False)  # No half carry when subtracting same value
+    cpu.set_flag("C", False)  # No carry when subtracting same value
+
+    # Store result in A (always 0)
+    cpu.set_register("A", 0x00)
+
+    return opcode_info["cycles"][0]
+
+
+def sub_a_n8(cpu, opcode_info) -> int:
+    """SUB A, n8 - Subtract immediate byte from A"""
+    a_value = cpu.get_register("A")
+    # Get the immediate operand from operand_values
+    n8_value = cpu.operand_values[1]["value"]
+
+    # Perform subtraction
+    result = a_value - n8_value
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (n8_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+def sbc_a_b(cpu, opcode_info) -> int:
+    """SBC A, B - Subtract B from A with carry"""
+    a_value = cpu.get_register("A")
+    b_value = cpu.get_register("B")
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - b_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (b_value & 0xF) + (1 if carry_flag else 0))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sbc_a_c(cpu, opcode_info) -> int:
+    """SBC A, C - Subtract C from A with carry"""
+    a_value = cpu.get_register("A")
+    c_value = cpu.get_register("C")
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - c_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (c_value & 0xF) + (1 if carry_flag else 0))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sbc_a_d(cpu, opcode_info) -> int:
+    """SBC A, D - Subtract D from A with carry"""
+    a_value = cpu.get_register("A")
+    d_value = cpu.get_register("D")
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - d_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (d_value & 0xF) + (1 if carry_flag else 0))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sbc_a_e(cpu, opcode_info) -> int:
+    """SBC A, E - Subtract E from A with carry"""
+    a_value = cpu.get_register("A")
+    e_value = cpu.get_register("E")
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - e_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (e_value & 0xF) + (1 if carry_flag else 0))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sbc_a_h(cpu, opcode_info) -> int:
+    """SBC A, H - Subtract H from A with carry"""
+    a_value = cpu.get_register("A")
+    h_value = cpu.get_register("H")
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - h_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (h_value & 0xF) + (1 if carry_flag else 0))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sbc_a_l(cpu, opcode_info) -> int:
+    """SBC A, L - Subtract L from A with carry"""
+    a_value = cpu.get_register("A")
+    l_value = cpu.get_register("L")
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - l_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (l_value & 0xF) + (1 if carry_flag else 0))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sbc_a_hl(cpu, opcode_info) -> int:
+    """SBC A, (HL) - Subtract memory at HL from A with carry"""
+    a_value = cpu.get_register("A")
+    hl_address = cpu.get_register_pair("HL")
+    hl_value = cpu.memory.get_value(hl_address)
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - hl_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (hl_value & 0xF) + (1 if carry_flag else 0))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sbc_a_a(cpu, opcode_info) -> int:
+    """SBC A, A - Subtract A from A with carry (always results in 0 or 0xFF)"""
+    a_value = cpu.get_register("A")
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - a_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def sbc_a_n8(cpu, opcode_info) -> int:
+    """SBC A, n8 - Subtract immediate byte from A with carry"""
+    a_value = cpu.get_register("A")
+    # Get the immediate operand from operand_values
+    n8_value = cpu.operand_values[1]["value"]
+    carry_flag = cpu.get_flag("C")
+
+    # Perform subtraction with carry
+    result = a_value - n8_value - (1 if carry_flag else 0)
+
+    # Update flags
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (n8_value & 0xF) + (1 if carry_flag else 0))
+    cpu.set_flag("C", result < 0)
+
+    # Store result in A
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
