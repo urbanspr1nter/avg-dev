@@ -58,459 +58,52 @@ self.opcode_handlers = {
 
 ## Recent Work
 
-### LD L, n8 Implementation (0x2E)
-**Date**: January 24, 2026
+### ADD A, xx Implementations (0x80-0x87, 0xC6)
+**Date**: January 31, 2026
 
 **Changes Made**:
-1. Added `ld_l_n8` handler function to `src/cpu/handlers/ld_handlers.py`
-   - Loads 8-bit immediate value into register L
-   - Returns 8 cycles
-
-2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
-   ```python
-   0x2E: ld_l_n8
-   ```
-
-3. Added import for `ld_l_n8` function at `src/cpu/gb_cpu.py:16`
-
-4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_ld_l_n8(self):
-       """Test running LD L, n8 instruction (0x2E, 8 cycles)"""
-       self.cpu.memory.set_value(0x0000, 0x2E)  # LD L, n8
-       self.cpu.memory.set_value(0x0001, 0x7F)  # n8 = 0x7F
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=8)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0002)
-       self.assertEqual(self.cpu.current_cycles, 8)
-       self.assertEqual(self.cpu.get_register('L'), 0x7F)
-   ```
-
-**Verification**: All 62 CPU tests pass (including the new test)
-
-### LD H, n8 Implementation (0x26)
-**Date**: January 24, 2026
-
-**Changes Made**:
-1. Added `_ld_h_n8()` handler function to `src/cpu/handlers/ld_handlers.py`
-   - Loads 8-bit immediate value into register H
-   - Returns 8 cycles
-
-2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
-   ```python
-   0x26: ld_h_n8
-   ```
-
-3. Added import for `ld_h_n8` function at `src/cpu/gb_cpu.py:16`
-
-4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_ld_h_n8(self):
-       """Test running LD H, n8 instruction (0x26, 8 cycles)"""
-       self.cpu.memory.set_value(0x0000, 0x26)  # LD H, n8
-       self.cpu.memory.set_value(0x0001, 0xFF)  # n8 = 0xFF
-       self.cpu.registers.PC = 0x0000
-       
-       self.cpu.run(max_cycles=8)
-       
-       self.assertEqual(self.cpu.registers.PC, 0x0002)
-       self.assertEqual(self.cpu.current_cycles, 8)
-       self.assertEqual(self.cpu.get_register('H'), 0xFF)
-   ```
-
-**Verification**: All 61 CPU tests pass (including the new test)
-
-### Handler Refactoring (January 24, 2026)
-**Date**: January 24, 2026
-
-**Changes Made**:
-1. Created `src/cpu/handlers/` directory to organize opcode handlers by category
-2. Moved handlers into separate files:
-   - `ld_handlers.py`: LD (load) instructions
-   - `jr_handlers.py`: JR (jump relative) instructions  
-   - `misc_handlers.py`: Miscellaneous instructions like NOP
-3. Updated CPU class to import handlers and call them as functions instead of methods
-4. Added documentation in `src/cpu/handlers/README.md`
-
-**Benefits**:
-- Better code organization by instruction type
-- Easier maintenance and navigation
-- Clearer separation of concerns
-- All 60 CPU tests still pass after refactoring
-
-### JR NZ, e8 Test Fix (0x20)
-**Date**: January 24, 2026
-
-**Issue**: The test `test_run_jr_nz_e8_jump_not_taken` was failing because it set register A to 0x00 but didn't explicitly set the Z flag. In the Gameboy CPU implementation, setting a register value doesn't automatically update flags - flags must be set explicitly.
-
-**Fix**: Added `self.cpu.set_flag('Z', True)` after setting A to 0x00 in the test case at line 124 of `tests/cpu/test_fetch_with_operands.py`.
-
-**Verification**: All 60 CPU tests now pass
-
-### LD E, n8 Implementation (0x1E)
-**Date**: January 24, 2026
-
-**Changes Made**:
-1. Added `_ld_e_n8()` handler method to `src/cpu/gb_cpu.py`
-   - Loads 8-bit immediate value into register E
-   - Returns 8 cycles
-
-2. Registered handler in dispatch table:
-   ```python
-   0x1E: self._ld_e_n8
-   ```
-
-3. Added test case to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_ld_e_n8(self):
-       """Test running LD E, n8 instruction (0x1E, 8 cycles)"""
-       self.cpu.memory.set_value(0x0000, 0x1E)  # LD E, n8
-       self.cpu.memory.set_value(0x0001, 0x7F)  # n8 = 0x7F
-       self.cpu.registers.PC = 0x0000
-       
-       self.cpu.run(max_cycles=8)
-       
-       self.assertEqual(self.cpu.registers.PC, 0x0002)
-       self.assertEqual(self.cpu.current_cycles, 8)
-       self.assertEqual(self.cpu.get_register('E'), 0x7F)
-   ```
-
-**Verification**: All 58 CPU tests pass
-
-### LD D, n8 Implementation (0x16)
-**Date**: January 24, 2026
-
-**Changes Made**:
-1. Added `_ld_d_n8()` handler method to `src/cpu/gb_cpu.py`
-   - Loads 8-bit immediate value into register D
-   - Returns 8 cycles
-
-2. Registered handler in dispatch table:
-   ```python
-   0x16: self._ld_d_n8
-   ```
-
-3. Added test case to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_ld_d_n8(self):
-       """Test running LD D, n8 instruction (0x16, 8 cycles)"""
-       self.cpu.memory.set_value(0x0000, 0x16)  # LD D, n8
-       self.cpu.memory.set_value(0x0001, 0x42)  # n8 = 0x42
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=8)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0002)
-       self.assertEqual(self.cpu.current_cycles, 8)
-       self.assertEqual(self.cpu.get_register('D'), 0x42)
-   ```
-
-**Verification**: All 57 CPU tests pass
-
-### INC B Implementation (0x04)
-**Date**: January 24, 2026
-
-**Changes Made**:
-1. Added `inc_b()` handler function to `src/cpu/handlers/inc_dec_handlers.py`
-   - Increments register B by 1
-   - Updates Z flag if result is zero
-   - Updates H flag for half carry
-   - Returns 4 cycles
-
-2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
-   ```python
-   0x04: inc_b
-   ```
-
-3. Added import for `inc_b` function at `src/cpu/gb_cpu.py:16`
-
-4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_inc_b(self):
-       """Test running INC B instruction (0x04, 4 cycles)"""
-       self.cpu.set_register('B', 0x7F)
-       self.cpu.registers.PC = 0x0000
-       
-       self.cpu.run(max_cycles=4)
-       
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('B'), 0x80)
-   ```
-
-**Verification**: All 65 CPU tests pass (including the new test)
-
-### INC C Implementation (0x0C)
-**Date**: January 24, 2026
-
-**Changes Made**:
-1. Added `inc_c()` handler function to `src/cpu/handlers/inc_dec_handlers.py`
-   - Increments register C by 1
-   - Updates Z flag if result is zero
-   - Updates H flag for half carry
-   - Returns 4 cycles
-
-2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
-   ```python
-   0x0C: inc_c
-   ```
-
-3. Added import for `inc_c` function at `src/cpu/gb_cpu.py:16`
-
-4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_inc_c(self):
-       """Test running INC C instruction (0x0C, 4 cycles)"""
-       self.cpu.set_register('C', 0x7F)
-       self.cpu.registers.PC = 0x0000
-       
-       self.cpu.run(max_cycles=4)
-       
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('C'), 0x80)
-   ```
-
-**Verification**: All 65 CPU tests pass (including the new test)
-
-### INC D Implementation (0x14)
-**Date**: January 24, 2026
-
-**Changes Made**:
-1. Added `inc_d()` handler function to `src/cpu/handlers/inc_dec_handlers.py`
-   - Increments register D by 1
-   - Updates Z flag if result is zero
-   - Updates H flag for half carry
-   - Returns 4 cycles
-
-2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:47`:
-   ```python
-   0x14: inc_d
-   ```
-
-3. Added import for `inc_d` function at `src/cpu/gb_cpu.py:16`
-
-4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_inc_d(self):
-       """Test running INC D instruction (0x14, 4 cycles)"""
-       self.cpu.set_register('D', 0x7F)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=4)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('D'), 0x80)
-   ```
-
-**Verification**: All 65 CPU tests pass (including the new test)
-
-### INC H Implementation (0x24)
-**Date**: January 25, 2026
-
-**Changes Made**:
-1. Added `inc_h()` handler function to `src/cpu/handlers/inc_dec_handlers.py`
-   - Increments register H by 1
-   - Updates Z flag if result is zero
-   - Updates H flag for half carry
-   - Returns 4 cycles
-
-2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:50`:
-   ```python
-   0x24: inc_h
-   ```
-
-3. Added import for `inc_h` function at `src/cpu/gb_cpu.py:16`
-
-4. Added test cases to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_inc_h(self):
-       """Test running INC H instruction (0x24, 4 cycles)"""
-       self.cpu.set_register('H', 0x7F)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=4)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('H'), 0x80)
+1. Added handler functions to `src/cpu/handlers/arith_handlers.py`:
+   - `add_a_b()`: ADD A, B (0x80) - Add B to A
+   - `add_a_c()`: ADD A, C (0x81) - Add C to A  
+   - `add_a_d()`: ADD A, D (0x82) - Add D to A
+   - `add_a_e()`: ADD A, E (0x83) - Add E to A
+   - `add_a_h()`: ADD A, H (0x84) - Add H to A
+   - `add_a_l()`: ADD A, L (0x85) - Add L to A
+   - `add_a_hl()`: ADD A, (HL) (0x86) - Add value at memory address HL to A
+   - `add_a_a()`: ADD A, A (0x87) - Add A to A (equivalent to A << 1)
+   - `add_a_n8()`: ADD A, n8 (0xC6) - Add immediate byte to A
    
-   def test_run_inc_h_zero_flag(self):
-       """Test running INC H instruction with Zero flag set (0x24, 4 cycles)"""
-       self.cpu.set_register('H', 0xFF)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=4)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('H'), 0x00)
-       self.assertTrue(self.cpu.get_flag('Z'))
-   ```
+  All handlers:
+  - Perform 8-bit addition
+  - Update Z flag if result is zero
+  - Set N flag to False
+  - Update H flag for half carry
+  - Update C flag for carry
+  - Return appropriate cycle count (4 cycles for register operands, 8 cycles for memory/immediate)
 
-**Verification**: All 68 CPU tests pass (including the new tests)
-
-### INC L Implementation (0x2C) and INC A Implementation (0x3C)
-**Date**: January 25, 2026
-
-**Changes Made**:
-1. Added `inc_l()` and `inc_a()` handler functions to `src/cpu/handlers/inc_dec_handlers.py`
-   - Both increment their respective registers by 1
-   - Update Z flag if result is zero
-   - Update H flag for half carry
-   - Return 4 cycles each
-
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py:50`:
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
    ```python
-   0x2C: inc_l
-   0x3C: inc_a
+   0x80: add_a_b
+   0x81: add_a_c
+   0x82: add_a_d
+   0x83: add_a_e
+   0x84: add_a_h
+   0x85: add_a_l
+   0x86: add_a_hl
+   0x87: add_a_a
+   0xC6: add_a_n8
    ```
 
-3. Added imports for `inc_l` and `inc_a` functions at `src/cpu/gb_cpu.py:16`
+3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
 
-4. Added test cases to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_inc_l(self):
-       """Test running INC L instruction (0x2C, 4 cycles)"""
-       self.cpu.set_register('L', 0x7F)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=4)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('L'), 0x80)
-   
-   def test_run_inc_a(self):
-       """Test running INC A instruction (0x3C, 4 cycles)"""
-       self.cpu.set_register('A', 0x7F)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=4)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('A'), 0x80)
-   ```
+4. Updated ADC test cases to use correct opcodes (0x88-0x8F instead of 0x80-0x87)
 
-**Verification**: All 72 CPU tests pass (including the new tests)
+5. Added comprehensive test cases to `tests/cpu/test_fetch_with_operands.py`:
+   - Basic functionality tests for each ADD A, xx instruction
+   - Flag manipulation tests (Z, N, H, C flags)
+   - Tests verify correct PC advancement and cycle counting
 
-### DEC B Implementation (0x05), DEC C Implementation (0x0D), and DEC D Implementation (0x15)
-**Date**: January 25, 2026
-
-**Changes Made**:
-1. Added `dec_b()`, `dec_c()`, and `dec_d()` handler functions to `src/cpu/handlers/inc_dec_handlers.py`
-   - All decrement their respective registers by 1
-   - Update Z flag if result is zero
-   - Set N flag (always set for DEC instructions)
-   - Update H flag for half borrow
-   - Return 4 cycles each
-
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py:50`:
-   ```python
-   0x05: dec_b
-   0x0D: dec_c
-   0x15: dec_d
-   ```
-
-3. Added imports for `dec_b`, `dec_c`, and `dec_d` functions at `src/cpu/gb_cpu.py:16`
-
-4. Added test cases to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_dec_b(self):
-       """Test running DEC B instruction (0x05, 4 cycles)"""
-       self.cpu.set_register('B', 0x80)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=4)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('B'), 0x7F)
-   
-   def test_run_dec_c(self):
-       """Test running DEC C instruction (0x0D, 4 cycles)"""
-       self.cpu.set_register('C', 0x80)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=4)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('C'), 0x7F)
-   
-   def test_run_dec_d(self):
-       """Test running DEC D instruction (0x15, 4 cycles)"""
-       self.cpu.set_register('D', 0x80)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=4)
-        
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 4)
-       self.assertEqual(self.cpu.get_register('D'), 0x7F)
-   ```
-
-**Verification**: All 75 CPU tests pass (including the new tests)
-
-### DEC HL Implementation (0x2B) and INC HL Implementation (0x23)
-**Date**: January 25, 2026
-
-**Changes Made**:
-1. Added `inc_hl()` and `dec_hl()` handler functions to `src/cpu/handlers/inc_dec_handlers.py`
-   - Both increment/decrement the HL register pair by 1
-   - Update Z flag if result is zero (only for INC)
-   - Set N flag (always set for DEC instructions, not set for INC)
-   - Update H flag for half carry/borrow
-   - Return 8 cycles each
-
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py:50`:
-   ```python
-   0x23: inc_hl
-   0x2B: dec_hl
-   ```
-
-3. Added imports for `inc_hl` and `dec_hl` functions at `src/cpu/gb_cpu.py:16`
-
-4. Added test cases to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_inc_hl(self):
-       """Test running INC HL instruction (0x23, 8 cycles)"""
-       # Set opcode at 0x0000
-       self.cpu.memory.set_value(0x0000, 0x23)  # INC HL
-       # Set HL to 0xABCD
-       self.cpu.set_register('HL', 0xABCD)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=8)
-        
-       # PC should advance by 1 (no operands)
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 8)
-       # HL should be incremented to 0xABCE
-       self.assertEqual(self.cpu.get_register('HL'), 0xABCE)
-   
-   def test_run_dec_hl(self):
-       """Test running DEC HL instruction (0x2B, 8 cycles)"""
-       # Set DEC HL opcode at address 0
-       self.cpu.memory.set_value(0x0000, 0x2B)  # DEC HL
-       # Set HL to 0x9ABC
-       self.cpu.set_register('HL', 0x9ABC)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=8)
-        
-       # PC should advance by 1 (no operands)
-       self.assertEqual(self.cpu.registers.PC, 0x0001)
-       self.assertEqual(self.cpu.current_cycles, 8)
-       # HL should be decremented to 0x9ABB
-       self.assertEqual(self.cpu.get_register('HL'), 0x9ABB)
-   ```
-
-**Verification**: All 86 CPU tests pass (including the new tests)
+**Verification**: All 123 CPU tests pass (including the new tests)
 
 ### LD (HL), n8 Implementation (0x36)
 **Date**: January 25, 2026
