@@ -128,6 +128,12 @@ from src.cpu.handlers.inc_dec_handlers import (
     inc_hl_indirect,
     dec_hl_indirect,
 )
+from src.cpu.handlers.rotate_handlers import (
+    rlc_a,
+    rrc_a,
+    rl_a,
+    rr_a,
+)
 
 
 class CPU:
@@ -181,16 +187,10 @@ class CPU:
             0x3B: dec_sp,
             0x3C: inc_a,
             0x3D: dec_a,
-            0x80: add_a_b,
-            0x81: add_a_c,
-            0x82: add_a_d,
-            0x83: add_a_e,
-            0x84: add_a_h,
-            0x85: add_a_l,
-            0x87: add_a_a,
-            0xC6: add_a_n8,
-            0xD6: sub_a_n8,
-            0xDE: sbc_a_n8,
+            0x07: rlc_a,
+            0x0F: rrc_a,
+            0x17: rl_a,
+            0x1F: rr_a,
             0x06: ld_b_n8,
             0x0E: ld_c_n8,
             0x11: ld_de_n16,
@@ -217,6 +217,10 @@ class CPU:
             0x8D: adc_a_l,
             0x8E: adc_a_hl,
             0x8F: adc_a_a,
+            0x07: rlc_a,
+            0x0F: rrc_a,
+            0x17: rl_a,
+            0x1F: rr_a,
             0x90: sub_a_b,
             0x91: sub_a_c,
             0x92: sub_a_d,
