@@ -404,21 +404,76 @@ This approach allows for steady progress while maintaining code quality and ensu
 
 **Verification**: All 191 CPU tests pass (including the new rotate operation tests)
 
+## Recent Work
+
+### LD r1, r2 Implementations (0x40-0x7F)
+**Date**: February 1, 2026
+
+**Changes Made**:
+1. Created `src/cpu/handlers/ld_r1_r2_handlers.py` with 56 handler functions for all LD r1, r2 instructions:
+   - LD B, r (0x40-0x47): Load register into B
+   - LD C, r (0x48-0x4F): Load register into C
+   - LD D, r (0x50-0x57): Load register into D
+   - LD E, r (0x58-0x5F): Load register into E
+   - LD H, r (0x60-0x67): Load register into H
+   - LD L, r (0x68-0x6F): Load register into L
+   - LD (HL), r (0x70-0x75, 0x77): Load register into memory at HL
+   - LD A, r (0x78-0x7F): Load register into A
+   
+2. Registered all handlers in dispatch table at `src/cpu/gb_cpu.py`:
+   ```python
+   0x40: ld_b_b
+   0x41: ld_b_c
+   0x42: ld_b_d
+   0x43: ld_b_e
+   0x44: ld_b_h
+   0x45: ld_b_l
+   0x46: ld_b_hl
+   0x47: ld_b_a
+   # ... all 56 opcodes ...
+   0x7F: ld_a_a
+   ```
+
+3. Added comprehensive test cases to `tests/cpu/test_ld_r1_r2.py`:
+   - Basic functionality tests for each instruction
+   - Tests verify correct PC advancement and cycle counting (4 cycles for register operands, 8 cycles for memory)
+   - Test with multiple instructions in sequence
+
+**Verification**: All 16 new LD r1, r2 tests pass. Total CPU tests: 207 (3 pre-existing failures unrelated to this work)
+
+## Recent Work
+
+### Fixed Missing Opcode Registrations (0xC6, 0xD6, 0xDE)
+**Date**: February 1, 2026
+
+**Changes Made**:
+1. Registered previously imported but unregistered immediate arithmetic opcodes in dispatch table:
+   - `add_a_n8` (ADD A, n8) at opcode 0xC6
+   - `sub_a_n8` (SUB A, n8) at opcode 0xD6
+   - `sbc_a_n8` (SBC A, n8) at opcode 0xDE
+
+**Verification**: All 207 CPU tests now pass with no failures
+
 ## Next Steps
 
 ### Recommended Opcodes to Implement Next
 
 Based on the current implementation pattern and code organization, here are the next easiest sets of opcodes to implement:
 
-#### 1. **Additional Rotation/Shift Instructions**
-   - RLA (Rotate A left through carry), RRA (Rotate A right through carry) - 0x27, 0x2F
-   - SLA, SRA, SRL, SWAP instructions for all registers (CB prefix)
-   - Bit check/set/reset operations (CB prefix)
+#### 1. **Additional Rotation/Shift Instructions** (Easiest - 4 cycles each)
+   - RLA (Rotate A left through carry) - 0x27
+   - RRA (Rotate A right through carry) - 0x2F
+   - These are simple single-register operations following the same pattern as existing rotate handlers
 
 #### 2. **Load/Store Instructions**
-   - LD r1, r2 instructions for transferring between registers (0x40-0x7F)
    - LDH (LD High) instructions for accessing HRAM (0xE0-0xFA)
+     - LD (n), A (0xE0): Load A into memory at address 0xFF00+n
+     - LD (C), A (0xE2): Load A into memory at address 0xFF00+C
+     - LD A, (n) (0xF0): Load from memory at address 0xFF00+n into A
+     - LD A, (C) (0xF2): Load from memory at address 0xFF00+C into A
    - PUSH/POP instructions for stack operations
+     - PUSH AF (0xF5), PUSH BC (0xC5), PUSH DE (0xD5), PUSH HL (0xE5)
+     - POP AF (0xF1), POP BC (0xC1), POP DE (0xD1), POP HL (0xE1)
 
 #### 2. **Bit Check/Set/Reset Instructions (CB prefix, 0x40-0x7F)** - Bit manipulation on registers and memory
    - Check if a specific bit is set
