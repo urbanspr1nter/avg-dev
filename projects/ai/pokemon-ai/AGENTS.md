@@ -248,38 +248,151 @@ This approach allows for steady progress while maintaining code quality and ensu
 5. **Memory Safety**: All memory accesses must be bounded (0x0000-0xFFFF)
 6. **Searching**: Use Kagi Search MCP tool if prompted to search for things outside of your knowledge base or repo
 
+## Recent Work
+
+### AND/OR/XOR/CP Implementations (0xA0-0xBF, 0xE6, 0xEE, 0xF6, 0xFE)
+**Date**: February 1, 2026
+
+**Changes Made**:
+1. Added handler functions to `src/cpu/handlers/bitwise_handlers.py`:
+   - AND instructions (0xA0-0xA7, 0xE6):
+     - `and_a_b()`: AND A, B (0xA0) - Bitwise AND of A and B
+     - `and_a_c()`: AND A, C (0xA1) - Bitwise AND of A and C
+     - `and_a_d()`: AND A, D (0xA2) - Bitwise AND of A and D
+     - `and_a_e()`: AND A, E (0xA3) - Bitwise AND of A and E
+     - `and_a_h()`: AND A, H (0xA4) - Bitwise AND of A and H
+     - `and_a_l()`: AND A, L (0xA5) - Bitwise AND of A and L
+     - `and_a_hl()`: AND A, (HL) (0xA6) - Bitwise AND of A and memory at HL
+     - `and_a_a()`: AND A, A (0xA7) - Bitwise AND of A with itself
+     - `and_a_n8()`: AND A, n8 (0xE6) - Bitwise AND of A with immediate byte
+   
+   - OR instructions (0xB0-0xB7, 0xF6):
+     - `or_a_b()`: OR A, B (0xB0) - Bitwise OR of A and B
+     - `or_a_c()`: OR A, C (0xB1) - Bitwise OR of A and C
+     - `or_a_d()`: OR A, D (0xB2) - Bitwise OR of A and D
+     - `or_a_e()`: OR A, E (0xB3) - Bitwise OR of A and E
+     - `or_a_h()`: OR A, H (0xB4) - Bitwise OR of A and H
+     - `or_a_l()`: OR A, L (0xB5) - Bitwise OR of A and L
+     - `or_a_hl()`: OR A, (HL) (0xB6) - Bitwise OR of A and memory at HL
+     - `or_a_a()`: OR A, A (0xB7) - Bitwise OR of A with itself
+     - `or_a_n8()`: OR A, n8 (0xF6) - Bitwise OR of A with immediate byte
+   
+   - XOR instructions (0xA8-0xAF, 0xEE):
+     - `xor_a_b()`: XOR A, B (0xA8) - Bitwise XOR of A and B
+     - `xor_a_c()`: XOR A, C (0xA9) - Bitwise XOR of A and C
+     - `xor_a_d()`: XOR A, D (0xAA) - Bitwise XOR of A and D
+     - `xor_a_e()`: XOR A, E (0xAB) - Bitwise XOR of A and E
+     - `xor_a_h()`: XOR A, H (0xAC) - Bitwise XOR of A and H
+     - `xor_a_l()`: XOR A, L (0xAD) - Bitwise XOR of A and L
+     - `xor_a_hl()`: XOR A, (HL) (0xAE) - Bitwise XOR of A and memory at HL
+     - `xor_a_a()`: XOR A, A (0xAF) - Bitwise XOR of A with itself
+     - `xor_a_n8()`: XOR A, n8 (0xEE) - Bitwise XOR of A with immediate byte
+   
+   - CP instructions (0xB8-0xBF, 0xFE):
+     - `cp_a_b()`: CP A, B (0xB8) - Compare A with B (A - B)
+     - `cp_a_c()`: CP A, C (0xB9) - Compare A with C (A - C)
+     - `cp_a_d()`: CP A, D (0xBA) - Compare A with D (A - D)
+     - `cp_a_e()`: CP A, E (0xBB) - Compare A with E (A - E)
+     - `cp_a_h()`: CP A, H (0xBC) - Compare A with H (A - H)
+     - `cp_a_l()`: CP A, L (0xBD) - Compare A with L (A - L)
+     - `cp_a_hl()`: CP A, (HL) (0xBE) - Compare A with memory at HL
+     - `cp_a_a()`: CP A, A (0xBF) - Compare A with itself (always equal)
+     - `cp_a_n8()`: CP A, n8 (0xFE) - Compare A with immediate byte
+   
+  All handlers:
+  - Perform bitwise operations or comparisons
+  - Update Z flag based on result (zero if result is zero for AND/OR/XOR, equal if A == operand for CP)
+  - Set N flag to False for all bitwise ops, True for CP
+  - Set H flag to True for all bitwise ops and CP
+  - Set C flag to False for all bitwise ops and CP
+  - Return appropriate cycle count (4 cycles for register operands, 8 cycles for memory/immediate)
+
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
+   ```python
+   # AND instructions
+   0xA0: and_a_b
+   0xA1: and_a_c
+   0xA2: and_a_d
+   0xA3: and_a_e
+   0xA4: and_a_h
+   0xA5: and_a_l
+   0xA6: and_a_hl
+   0xA7: and_a_a
+   0xE6: and_a_n8
+   
+   # OR instructions
+   0xB0: or_a_b
+   0xB1: or_a_c
+   0xB2: or_a_d
+   0xB3: or_a_e
+   0xB4: or_a_h
+   0xB5: or_a_l
+   0xB6: or_a_hl
+   0xB7: or_a_a
+   0xF6: or_a_n8
+   
+   # XOR instructions
+   0xA8: xor_a_b
+   0xA9: xor_a_c
+   0xAA: xor_a_d
+   0xAB: xor_a_e
+   0xAC: xor_a_h
+   0xAD: xor_a_l
+   0xAE: xor_a_hl
+   0xAF: xor_a_a
+   0xEE: xor_a_n8
+   
+   # CP instructions
+   0xB8: cp_a_b
+   0xB9: cp_a_c
+   0xBA: cp_a_d
+   0xBB: cp_a_e
+   0xBC: cp_a_h
+   0xBD: cp_a_l
+   0xBE: cp_a_hl
+   0xBF: cp_a_a
+   0xFE: cp_a_n8
+   ```
+
+3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+
+4. Added comprehensive test cases to `tests/cpu/test_bitwise_ops.py`:
+   - Basic functionality tests for each instruction
+   - Flag manipulation tests (Z, N, H, C flags)
+   - Tests verify correct PC advancement and cycle counting
+   - Tests with various operand values including edge cases
+
+**Verification**: All 181 CPU tests pass (including the new 38 bitwise operation tests)
+
 ## Next Steps
 
 ### Recommended Opcodes to Implement Next
 
 Based on the current implementation pattern and code organization, here are the next easiest sets of opcodes to implement:
 
-#### 1. **AND A, xx (0xA0-0xA7, 0xE6)** - Bitwise AND operations
-   - Simple bitwise operations similar to ADD/SUB but with different flag behavior
-   - All set N and H flags to False, C flag to False, Z flag based on result
-   - Good candidate for implementing after arithmetic ops
+#### 1. **Rotation/Shift Instructions (0x07, 0x0F, 0x17, 0x1F, 0x27, 0x2F)** - Single-bit rotations and shifts
+   - Simple operations that rotate or shift bits in register A
+   - Most affect flags in predictable ways
+   - Good candidate for implementing after bitwise ops
 
-#### 2. **OR A, xx (0xB0-0xB7, 0xF6)** - Bitwise OR operations  
-   - Similar structure to AND but different flag behavior
-   - Set N and H flags to False, C flag to False, Z flag based on result
+#### 2. **Bit Check/Set/Reset Instructions (CB prefix, 0x40-0x7F)** - Bit manipulation on registers and memory
+   - Check if a specific bit is set
+   - Set or reset a specific bit
+   - These use the CB prefix which needs special handling in the opcode fetch logic
 
-#### 3. **XOR A, xx (0xA8-0xAF, 0xEE)** - Bitwise XOR operations
-   - Similar structure with yet another flag pattern
-   - Set N and H flags to False, C flag to False, Z flag based on result
+#### 3. **Load/Store Instructions (0x40-0x7F, 0xE0-0xFA)** - Additional register transfers and memory operations
+   - LD r1, r2 instructions for transferring between registers
+   - LDH (LD High) instructions for accessing HRAM
+   - PUSH/POP instructions for stack operations
 
-#### 4. **CP A, xx (0xB8-0xBF, 0xFE)** - Compare operations
-   - Similar to SUB but doesn't store result, only sets flags
-   - Set N and H flags based on subtraction, C flag for borrow, Z if equal
-
-These opcodes follow a similar pattern to the recently implemented ADD/ADC/SUB/SBC instructions:
-- Register operands (0xA0-0xAF): 4 cycles
-- Memory operand (HL): 8 cycles  
-- Immediate operand: 8 cycles
-- All are 8-bit operations on register A
+These opcodes follow various patterns:
+- Most are 4 or 8 cycle operations
+- Many involve register-to-register transfers
+- Some involve memory access with different cycle counts
 
 The implementation would follow the same pattern:
-1. Add handler functions to `src/cpu/handlers/arith_handlers.py`
-2. Register in dispatch table at `src/cpu/gb_cpu.py`
+1. Add handler functions to appropriate files in `src/cpu/handlers/`
+2. Register in dispatch table at `src/cpu/gb_cpu.py` (or handle CB prefix separately)
 3. Add imports
 4. Write comprehensive tests
 5. Verify all tests pass

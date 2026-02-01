@@ -444,6 +444,7 @@ def add_a_hl(cpu, opcode_info) -> int:
 
     return opcode_info["cycles"][0]
 
+
 def sub_a_b(cpu, opcode_info) -> int:
     """SUB A, B - Subtract B from A"""
     a_value = cpu.get_register("A")
@@ -623,6 +624,7 @@ def sub_a_n8(cpu, opcode_info) -> int:
     cpu.set_register("A", result & 0xFF)
 
     return opcode_info["cycles"][0]
+
 
 def sbc_a_b(cpu, opcode_info) -> int:
     """SBC A, B - Subtract B from A with carry"""
@@ -810,5 +812,720 @@ def sbc_a_n8(cpu, opcode_info) -> int:
 
     # Store result in A
     cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_b(cpu, opcode_info) -> int:
+    """AND A, B - Bitwise AND between A and B"""
+    a_value = cpu.get_register("A")
+    b_value = cpu.get_register("B")
+
+    # Perform bitwise AND
+    result = a_value & b_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_c(cpu, opcode_info) -> int:
+    """AND A, C - Bitwise AND between A and C"""
+    a_value = cpu.get_register("A")
+    c_value = cpu.get_register("C")
+
+    # Perform bitwise AND
+    result = a_value & c_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_d(cpu, opcode_info) -> int:
+    """AND A, D - Bitwise AND between A and D"""
+    a_value = cpu.get_register("A")
+    d_value = cpu.get_register("D")
+
+    # Perform bitwise AND
+    result = a_value & d_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_e(cpu, opcode_info) -> int:
+    """AND A, E - Bitwise AND between A and E"""
+    a_value = cpu.get_register("A")
+    e_value = cpu.get_register("E")
+
+    # Perform bitwise AND
+    result = a_value & e_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_h(cpu, opcode_info) -> int:
+    """AND A, H - Bitwise AND between A and H"""
+    a_value = cpu.get_register("A")
+    h_value = cpu.get_register("H")
+
+    # Perform bitwise AND
+    result = a_value & h_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_l(cpu, opcode_info) -> int:
+    """AND A, L - Bitwise AND between A and L"""
+    a_value = cpu.get_register("A")
+    l_value = cpu.get_register("L")
+
+    # Perform bitwise AND
+    result = a_value & l_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_hl(cpu, opcode_info) -> int:
+    """AND A, (HL) - Bitwise AND between A and memory at HL"""
+    a_value = cpu.get_register("A")
+    hl_address = cpu.get_register_pair("HL")
+    hl_value = cpu.memory.get_value(hl_address)
+
+    # Perform bitwise AND
+    result = a_value & hl_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_a(cpu, opcode_info) -> int:
+    """AND A, A - Bitwise AND between A and A (no change to A)"""
+    a_value = cpu.get_register("A")
+
+    # Perform bitwise AND
+    result = a_value & a_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A (same as original value)
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def and_a_n8(cpu, opcode_info) -> int:
+    """AND A, n8 - Bitwise AND between A and immediate byte"""
+    a_value = cpu.get_register("A")
+    # Get the immediate operand from operand_values
+    n8_value = cpu.operand_values[1]["value"]
+
+    # Perform bitwise AND
+    result = a_value & n8_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", True)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_b(cpu, opcode_info) -> int:
+    """OR A, B - Bitwise OR between A and B"""
+    a_value = cpu.get_register("A")
+    b_value = cpu.get_register("B")
+
+    # Perform bitwise OR
+    result = a_value | b_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_c(cpu, opcode_info) -> int:
+    """OR A, C - Bitwise OR between A and C"""
+    a_value = cpu.get_register("A")
+    c_value = cpu.get_register("C")
+
+    # Perform bitwise OR
+    result = a_value | c_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_d(cpu, opcode_info) -> int:
+    """OR A, D - Bitwise OR between A and D"""
+    a_value = cpu.get_register("A")
+    d_value = cpu.get_register("D")
+
+    # Perform bitwise OR
+    result = a_value | d_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_e(cpu, opcode_info) -> int:
+    """OR A, E - Bitwise OR between A and E"""
+    a_value = cpu.get_register("A")
+    e_value = cpu.get_register("E")
+
+    # Perform bitwise OR
+    result = a_value | e_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_h(cpu, opcode_info) -> int:
+    """OR A, H - Bitwise OR between A and H"""
+    a_value = cpu.get_register("A")
+    h_value = cpu.get_register("H")
+
+    # Perform bitwise OR
+    result = a_value | h_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_l(cpu, opcode_info) -> int:
+    """OR A, L - Bitwise OR between A and L"""
+    a_value = cpu.get_register("A")
+    l_value = cpu.get_register("L")
+
+    # Perform bitwise OR
+    result = a_value | l_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_hl(cpu, opcode_info) -> int:
+    """OR A, (HL) - Bitwise OR between A and memory at HL"""
+    a_value = cpu.get_register("A")
+    hl_address = cpu.get_register_pair("HL")
+    hl_value = cpu.memory.get_value(hl_address)
+
+    # Perform bitwise OR
+    result = a_value | hl_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_a(cpu, opcode_info) -> int:
+    """OR A, A - Bitwise OR between A and A (no change to A)"""
+    a_value = cpu.get_register("A")
+
+    # Perform bitwise OR
+    result = a_value | a_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A (same as original value)
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def or_a_n8(cpu, opcode_info) -> int:
+    """OR A, n8 - Bitwise OR between A and immediate byte"""
+    a_value = cpu.get_register("A")
+    # Get the immediate operand from operand_values
+    n8_value = cpu.operand_values[1]["value"]
+
+    # Perform bitwise OR
+    result = a_value | n8_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_b(cpu, opcode_info) -> int:
+    """XOR A, B - Bitwise XOR between A and B"""
+    a_value = cpu.get_register("A")
+    b_value = cpu.get_register("B")
+
+    # Perform bitwise XOR
+    result = a_value ^ b_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_c(cpu, opcode_info) -> int:
+    """XOR A, C - Bitwise XOR between A and C"""
+    a_value = cpu.get_register("A")
+    c_value = cpu.get_register("C")
+
+    # Perform bitwise XOR
+    result = a_value ^ c_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_d(cpu, opcode_info) -> int:
+    """XOR A, D - Bitwise XOR between A and D"""
+    a_value = cpu.get_register("A")
+    d_value = cpu.get_register("D")
+
+    # Perform bitwise XOR
+    result = a_value ^ d_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_e(cpu, opcode_info) -> int:
+    """XOR A, E - Bitwise XOR between A and E"""
+    a_value = cpu.get_register("A")
+    e_value = cpu.get_register("E")
+
+    # Perform bitwise XOR
+    result = a_value ^ e_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_h(cpu, opcode_info) -> int:
+    """XOR A, H - Bitwise XOR between A and H"""
+    a_value = cpu.get_register("A")
+    h_value = cpu.get_register("H")
+
+    # Perform bitwise XOR
+    result = a_value ^ h_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_l(cpu, opcode_info) -> int:
+    """XOR A, L - Bitwise XOR between A and L"""
+    a_value = cpu.get_register("A")
+    l_value = cpu.get_register("L")
+
+    # Perform bitwise XOR
+    result = a_value ^ l_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_hl(cpu, opcode_info) -> int:
+    """XOR A, (HL) - Bitwise XOR between A and memory at HL"""
+    a_value = cpu.get_register("A")
+    hl_address = cpu.get_register_pair("HL")
+    hl_value = cpu.memory.get_value(hl_address)
+
+    # Perform bitwise XOR
+    result = a_value ^ hl_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_a(cpu, opcode_info) -> int:
+    """XOR A, A - Bitwise XOR between A and A (always results in 0)"""
+    a_value = cpu.get_register("A")
+
+    # Perform bitwise XOR
+    result = a_value ^ a_value
+
+    # Update flags
+    cpu.set_flag("Z", True)  # Result is always zero
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A (always 0)
+    cpu.set_register("A", 0x00)
+
+    return opcode_info["cycles"][0]
+
+
+def xor_a_n8(cpu, opcode_info) -> int:
+    """XOR A, n8 - Bitwise XOR between A and immediate byte"""
+    a_value = cpu.get_register("A")
+    # Get the immediate operand from operand_values
+    n8_value = cpu.operand_values[1]["value"]
+
+    # Perform bitwise XOR
+    result = a_value ^ n8_value
+
+    # Update flags
+    cpu.set_flag("Z", result == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", False)
+
+    # Store result in A
+    cpu.set_register("A", result)
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_b(cpu, opcode_info) -> int:
+    """CP A, B - Compare A with B (subtract but don't store result)"""
+    a_value = cpu.get_register("A")
+    b_value = cpu.get_register("B")
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - b_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (b_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Don't store result in A
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_c(cpu, opcode_info) -> int:
+    """CP A, C - Compare A with C (subtract but don't store result)"""
+    a_value = cpu.get_register("A")
+    c_value = cpu.get_register("C")
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - c_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (c_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Don't store result in A
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_d(cpu, opcode_info) -> int:
+    """CP A, D - Compare A with D (subtract but don't store result)"""
+    a_value = cpu.get_register("A")
+    d_value = cpu.get_register("D")
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - d_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (d_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Don't store result in A
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_e(cpu, opcode_info) -> int:
+    """CP A, E - Compare A with E (subtract but don't store result)"""
+    a_value = cpu.get_register("A")
+    e_value = cpu.get_register("E")
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - e_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (e_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Don't store result in A
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_h(cpu, opcode_info) -> int:
+    """CP A, H - Compare A with H (subtract but don't store result)"""
+    a_value = cpu.get_register("A")
+    h_value = cpu.get_register("H")
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - h_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (h_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Don't store result in A
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_l(cpu, opcode_info) -> int:
+    """CP A, L - Compare A with L (subtract but don't store result)"""
+    a_value = cpu.get_register("A")
+    l_value = cpu.get_register("L")
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - l_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (l_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Don't store result in A
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_hl(cpu, opcode_info) -> int:
+    """CP A, (HL) - Compare A with memory at HL (subtract but don't store result)"""
+    a_value = cpu.get_register("A")
+    hl_address = cpu.get_register_pair("HL")
+    hl_value = cpu.memory.get_value(hl_address)
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - hl_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (hl_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Don't store result in A
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_a(cpu, opcode_info) -> int:
+    """CP A, A - Compare A with A (always equal)"""
+    a_value = cpu.get_register("A")
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - a_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", True)  # Result is always zero
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", False)  # No half carry when subtracting same value
+    cpu.set_flag("C", False)  # No carry when subtracting same value
+
+    # Don't store result in A
+
+    return opcode_info["cycles"][0]
+
+
+def cp_a_n8(cpu, opcode_info) -> int:
+    """CP A, n8 - Compare A with immediate byte (subtract but don't store result)"""
+    a_value = cpu.get_register("A")
+    # Get the immediate operand from operand_values
+    n8_value = cpu.operand_values[1]["value"]
+
+    # Perform subtraction for comparison (but don't store result)
+    result = a_value - n8_value
+
+    # Update flags based on subtraction
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", True)
+    cpu.set_flag("H", (a_value & 0xF) < (n8_value & 0xF))
+    cpu.set_flag("C", result < 0)
+
+    # Don't store result in A
 
     return opcode_info["cycles"][0]
