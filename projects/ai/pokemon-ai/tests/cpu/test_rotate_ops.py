@@ -246,6 +246,160 @@ class TestRotateOperations(unittest.TestCase):
         self.assertFalse(self.cpu.get_flag("H"))
         self.assertFalse(self.cpu.get_flag("C"))
 
+    def test_run_rla_a_basic(self):
+        """Test running RLA A instruction (0x27, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x27)  # RLA A
+        self.cpu.registers.PC = 0x0000
+
+        # Set A to 0b11001010 (0xCA)
+        self.cpu.set_register("A", 0xCA)
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1: opcode only
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+
+        # RLA A: rotate left through carry (carry flag is initially 0)
+        # 0b11001010 -> 0b10010100 (bit 7 moves to CF, old CF goes to bit 0)
+        self.assertEqual(self.cpu.get_register("A"), 0x94)
+
+        # Flags: Z=0, N=0, H=0, C=1 (old bit 7 was 1)
+        self.assertFalse(self.cpu.get_flag("Z"))
+        self.assertFalse(self.cpu.get_flag("N"))
+        self.assertFalse(self.cpu.get_flag("H"))
+        self.assertTrue(self.cpu.get_flag("C"))
+
+    def test_run_rla_a_with_carry(self):
+        """Test running RLA A instruction with carry flag set (0x27, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x27)  # RLA A
+        self.cpu.registers.PC = 0x0000
+
+        # Set A to 0b11001010 (0xCA)
+        self.cpu.set_register("A", 0xCA)
+        # Set carry flag to 1
+        self.cpu.set_flag("C", True)
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1: opcode only
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+
+        # RLA A: rotate left through carry (carry flag is 1)
+        # 0b11001010 -> 0b10010101 (bit 7 moves to CF, old CF goes to bit 0)
+        self.assertEqual(self.cpu.get_register("A"), 0x95)
+
+        # Flags: Z=0, N=0, H=0, C=1 (old bit 7 was 1)
+        self.assertFalse(self.cpu.get_flag("Z"))
+        self.assertFalse(self.cpu.get_flag("N"))
+        self.assertFalse(self.cpu.get_flag("H"))
+        self.assertTrue(self.cpu.get_flag("C"))
+
+    def test_run_rla_a_carry_zero(self):
+        """Test running RLA A with carry flag resulting in 0 (0x27, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x27)  # RLA A
+        self.cpu.registers.PC = 0x0000
+
+        # Set A to 0b01000000 (0x40)
+        self.cpu.set_register("A", 0x40)
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1: opcode only
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+
+        # RLA A: rotate left through carry (carry flag is initially 0)
+        # 0b01000000 -> 0b10000000 (bit 7 moves to CF, old CF goes to bit 0)
+        self.assertEqual(self.cpu.get_register("A"), 0x80)
+
+        # Flags: Z=0, N=0, H=0, C=0 (old bit 7 was 0)
+        self.assertFalse(self.cpu.get_flag("Z"))
+        self.assertFalse(self.cpu.get_flag("N"))
+        self.assertFalse(self.cpu.get_flag("H"))
+        self.assertFalse(self.cpu.get_flag("C"))
+
+    def test_run_rra_a_basic(self):
+        """Test running RRA A instruction (0x2F, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x2F)  # RRA A
+        self.cpu.registers.PC = 0x0000
+
+        # Set A to 0b11001001 (0xC9)
+        self.cpu.set_register("A", 0xC9)
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1: opcode only
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+
+        # RRA A: rotate right through carry (carry flag is initially 0)
+        # 0b11001001 -> 0b01100100 (bit 0 moves to CF, old CF goes to bit 7)
+        self.assertEqual(self.cpu.get_register("A"), 0x64)
+
+        # Flags: Z=0, N=0, H=0, C=1 (bit 0 of input was 1)
+        self.assertFalse(self.cpu.get_flag("Z"))
+        self.assertFalse(self.cpu.get_flag("N"))
+        self.assertFalse(self.cpu.get_flag("H"))
+        self.assertTrue(self.cpu.get_flag("C"))
+
+    def test_run_rra_a_with_carry(self):
+        """Test running RRA A instruction with carry flag set (0x2F, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x2F)  # RRA A
+        self.cpu.registers.PC = 0x0000
+
+        # Set A to 0b11001010 (0xCA)
+        self.cpu.set_register("A", 0xCA)
+        # Set carry flag to 1
+        self.cpu.set_flag("C", True)
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1: opcode only
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+
+        # RRA A: rotate right through carry (carry flag is 1)
+        # 0b11001010 -> 0b11100101 (bit 0 moves to CF, old CF goes to bit 7)
+        self.assertEqual(self.cpu.get_register("A"), 0xE5)
+
+        # Flags: Z=0, N=0, H=0, C=0 (bit 0 of input was 0)
+        self.assertFalse(self.cpu.get_flag("Z"))
+        self.assertFalse(self.cpu.get_flag("N"))
+        self.assertFalse(self.cpu.get_flag("H"))
+        self.assertFalse(self.cpu.get_flag("C"))
+
+    def test_run_rra_a_carry_zero(self):
+        """Test running RRA A with carry flag resulting in 0 (0x2F, 4 cycles)"""
+        # Set opcode at 0x0000
+        self.cpu.memory.set_value(0x0000, 0x2F)  # RRA A
+        self.cpu.registers.PC = 0x0000
+
+        # Set A to 0b11001011 (0xCB)
+        self.cpu.set_register("A", 0xCB)
+
+        self.cpu.run(max_cycles=4)
+
+        # PC should advance by 1: opcode only
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        self.assertEqual(self.cpu.current_cycles, 4)
+
+        # RRA A: rotate right through carry (carry flag is initially 0)
+        # 0b11001011 -> 0b01100101 (bit 0 moves to CF, old CF goes to bit 7)
+        self.assertEqual(self.cpu.get_register("A"), 0x65)
+
+        # Flags: Z=0, N=0, H=0, C=1 (bit 0 of input was 1)
+        self.assertFalse(self.cpu.get_flag("Z"))
+        self.assertFalse(self.cpu.get_flag("N"))
+        self.assertFalse(self.cpu.get_flag("H"))
+        self.assertTrue(self.cpu.get_flag("C"))
+
     def test_run_multiple_rotate_instructions(self):
         """Test running multiple rotate instructions in sequence"""
         # Set opcodes at 0x0000-0x0003

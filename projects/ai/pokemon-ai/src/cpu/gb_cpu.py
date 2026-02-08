@@ -217,6 +217,41 @@ from src.cpu.handlers.stack_handlers import (
     pop_de,
     pop_hl,
 )
+from src.cpu.handlers.jump_handlers import (
+    jp_nn,
+    jp_hl,
+    jr_n,
+    jr_nz_n,
+    jr_z_n,
+    jr_nc_n,
+    jr_c_n,
+    call_nn,
+    call_nz_nn,
+    call_z_nn,
+    call_nc_nn,
+    call_c_nn,
+    ret,
+    ret_nz,
+    ret_z,
+    ret_nc,
+    ret_c,
+    reti,
+    rst_00h,
+    rst_08h,
+    rst_10h,
+    rst_18h,
+    rst_20h,
+    rst_28h,
+    rst_30h,
+    rst_38h,
+)
+
+
+class Interrupts:
+    """Minimal interrupts interface for RETI instruction."""
+
+    def __init__(self):
+        self.enabled = False
 
 
 class CPU:
@@ -224,6 +259,9 @@ class CPU:
         self.registers = Registers()
         self.current_cycles = 0
         self.operand_values = []
+
+        # Minimal interrupts interface for RETI instruction
+        self.interrupts = Interrupts()
 
         self.opcodes_db = {}
         with open("Opcodes.json", "r") as f:
@@ -440,6 +478,35 @@ class CPU:
             0xF0: ldh_a_ff_n,
             0xE2: ldh_ff_c_a,
             0xF2: ldh_a_ff_c,
+            # Jump instructions
+            0xC3: jp_nn,
+            0x18: jr_n,
+            0x20: jr_nz_n,
+            0x28: jr_z_n,
+            0x30: jr_nc_n,
+            0x38: jr_c_n,
+            0xE9: jp_hl,
+            # Call/Return instructions
+            0xCD: call_nn,
+            0xC4: call_nz_nn,
+            0xCC: call_z_nn,
+            0xD4: call_nc_nn,
+            0xDC: call_c_nn,
+            0xC9: ret,
+            0xC0: ret_nz,
+            0xC8: ret_z,
+            0xD0: ret_nc,
+            0xD8: ret_c,
+            0xD9: reti,
+            # Restart instructions
+            0xC7: rst_00h,
+            0xCF: rst_08h,
+            0xD7: rst_10h,
+            0xDF: rst_18h,
+            0xE7: rst_20h,
+            0xEF: rst_28h,
+            0xF7: rst_30h,
+            0xFF: rst_38h,
         }
 
     def get_register(self, code):
@@ -742,7 +809,6 @@ class CPU:
 
             self.operand_values = []
 
-            """Execute one CPU instruction cycle."""
             # Fetch the opcode
             opcode = self.fetch()
 
@@ -805,14 +871,20 @@ class CPU:
                     else:
                         operand_type = "register_indirect"
 
-                    self.operand_values.append(
-                        {
-                            "name": operand_name,
-                            "value": operand_name,
-                            "immediate": operand_immediate,
-                            "type": operand_type,
-                        }
-                    )
+                    # Skip condition codes - these are part of the opcode mnemonic
+                    # Only skip for conditional instructions (which have multiple cycle counts)
+                    is_conditional = len(opcode_info.get("cycles", [])) > 1
+                    if is_conditional and operand_name in ["Z", "NZ", "C", "NC"]:
+                        pass
+                    else:
+                        self.operand_values.append(
+                            {
+                                "name": operand_name,
+                                "value": operand_name,
+                                "immediate": operand_immediate,
+                                "type": operand_type,
+                            }
+                        )
 
             # Dispatch to the handler and accumulate cycles
             handler = self.opcode_handlers.get(opcode)
