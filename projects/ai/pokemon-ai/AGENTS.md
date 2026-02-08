@@ -406,6 +406,86 @@ This approach allows for steady progress while maintaining code quality and ensu
 
 ## Recent Work
 
+### LDH Instructions Implementation (0xE0, 0xF0, 0xE2, 0xF2)
+**Date**: February 8, 2026
+
+**Changes Made**:
+1. Created `src/cpu/handlers/ldh_handlers.py` with 4 handler functions for LDH (Load Half) instructions:
+   - `ldh_ff_n_a()`: LDH (n), A (0xE0) - Load A into HRAM/I/O at address 0xFF00+n
+   - `ldh_a_ff_n()`: LDH A, (n) (0xF0) - Load from HRAM/I/O at address 0xFF00+n into A
+   - `ldh_ff_c_a()`: LDH (C), A (0xE2) - Load A into HRAM/I/O at address 0xFF00+C
+   - `ldh_a_ff_c()`: LDH A, (C) (0xF2) - Load from HRAM/I/O at address 0xFF00+C
+  
+  All handlers:
+  - Access HRAM (High RAM) at addresses 0xFF00-0xFFFF
+  - Calculate target address based on immediate value or C register
+  - Perform memory read/write operations
+  - Return appropriate cycle count (12 cycles for instructions with immediate operand, 8 cycles for instructions using C register)
+
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
+   ```python
+   0xE0: ldh_ff_n_a
+   0xF0: ldh_a_ff_n
+   0xE2: ldh_ff_c_a
+   0xF2: ldh_a_ff_c
+   ```
+
+3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+
+4. Added comprehensive test cases to `tests/cpu/test_fetch_with_operands.py`:
+   - Basic functionality tests for each LDH instruction
+   - Tests verify correct PC advancement and cycle counting
+   - Tests with various operand values including edge cases
+   - All 4 new LDH tests pass
+
+**Verification**: All 217 CPU tests pass (including the new LDH instruction tests)
+
+### Fixed LDH A, (n) Instruction Bug
+**Date**: February 8, 2026
+
+**Changes Made**:
+1. Fixed operand index bug in `ldh_a_ff_n()` handler function:
+   - Changed from accessing `cpu.operand_values[0]["value"]` to `cpu.operand_values[1]["value"]`
+   - The instruction has two operands: A (register) at index 0, and n8 (immediate value) at index 1
+   - Removed duplicate function definitions that were causing LSP errors
+
+**Verification**: All 217 CPU tests pass
+
+### Additional Rotation/Shift Instructions (RLA, RRA) - 0x27, 0x2F
+**Date**: February 8, 2026
+
+**Changes Made**:
+1. Added handler functions to `src/cpu/handlers/rotate_handlers.py`:
+   - RLA instructions (Rotate Left through Carry without Z flag):
+     - `rla_a()`: RLA A (0x27) - Rotate A left through carry, does NOT update Z flag
+   - RRA instructions (Rotate Right through Carry without Z flag):
+     - `rra_a()`: RRA A (0x2F) - Rotate A right through carry, does NOT update Z flag
+  
+  All handlers:
+  - Perform bit rotations with carry flag interaction
+  - Set N and H flags to False
+  - Set C flag based on the rotated-out bit
+  - Do NOT update Z flag (unlike RLC/RRC/RL/RR)
+  - Return appropriate cycle count (4 cycles)
+
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
+   ```python
+   0x27: rla_a
+   0x2F: rra_a
+   ```
+
+3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+
+4. Added comprehensive test cases to `tests/cpu/test_rotate_ops.py`:
+   - Basic functionality tests for RLA and RRA instructions
+   - Tests with carry flag set and unset
+   - Tests verify correct PC advancement, cycle counting, and flag manipulation
+   - All 6 new rotate tests pass (3 for RLA, 3 for RRA)
+
+**Verification**: All 217 CPU tests pass (including the new rotation operation tests)
+
+## Recent Work
+
 ### LD r1, r2 Implementations (0x40-0x7F)
 **Date**: February 1, 2026
 
