@@ -21,6 +21,12 @@ from src.cpu.handlers.ld_handlers import (
     ld_de_n16,
     ld_hl_n8,
 )
+from src.cpu.handlers.ldh_handlers import (
+    ldh_ff_n_a,
+    ldh_a_ff_n,
+    ldh_ff_c_a,
+    ldh_a_ff_c,
+)
 from src.cpu.handlers.ld_r1_r2_handlers import (
     ld_b_b,
     ld_b_c,
@@ -198,6 +204,18 @@ from src.cpu.handlers.rotate_handlers import (
     rrc_a,
     rl_a,
     rr_a,
+    rla_a,
+    rra_a,
+)
+from src.cpu.handlers.stack_handlers import (
+    push_af,
+    push_bc,
+    push_de,
+    push_hl,
+    pop_af,
+    pop_bc,
+    pop_de,
+    pop_hl,
 )
 
 
@@ -256,6 +274,8 @@ class CPU:
             0x0F: rrc_a,
             0x17: rl_a,
             0x1F: rr_a,
+            0x27: rla_a,
+            0x2F: rra_a,
             0x06: ld_b_n8,
             0x0E: ld_c_n8,
             0x11: ld_de_n16,
@@ -402,10 +422,24 @@ class CPU:
             0xBE: cp_a_hl,
             0xBF: cp_a_a,
             0xFE: cp_a_n8,
+            # Stack operations
+            0xC1: pop_bc,
+            0xC5: push_bc,
+            0xD1: pop_de,
+            0xD5: push_de,
+            0xE1: pop_hl,
+            0xE5: push_hl,
+            0xF1: pop_af,
+            0xF5: push_af,
             # Immediate value arithmetic operations
             0xC6: add_a_n8,
             0xD6: sub_a_n8,
             0xDE: sbc_a_n8,
+            # LDH (Load Half) instructions for HRAM/I/O access
+            0xE0: ldh_ff_n_a,
+            0xF0: ldh_a_ff_n,
+            0xE2: ldh_ff_c_a,
+            0xF2: ldh_a_ff_c,
         }
 
     def get_register(self, code):

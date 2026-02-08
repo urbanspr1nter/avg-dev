@@ -406,6 +406,52 @@ This approach allows for steady progress while maintaining code quality and ensu
 
 ## Recent Work
 
+### PUSH/POP Instructions Implementation (0xC5, 0xC1, 0xD5, 0xD1, 0xE5, 0xE1, 0xF5, 0xF1)
+**Date**: February 8, 2026
+
+**Changes Made**:
+1. Added handler functions to `src/cpu/handlers/stack_handlers.py`:
+   - PUSH instructions (16 cycles each):
+     - `push_af()`: PUSH AF (0xF5) - Push AF onto stack
+     - `push_bc()`: PUSH BC (0xC5) - Push BC onto stack
+     - `push_de()`: PUSH DE (0xD5) - Push DE onto stack
+     - `push_hl()`: PUSH HL (0xE5) - Push HL onto stack
+   
+   - POP instructions (12 cycles each):
+     - `pop_af()`: POP AF (0xF1) - Pop value from stack into AF
+     - `pop_bc()`: POP BC (0xC1) - Pop value from stack into BC
+     - `pop_de()`: POP DE (0xD1) - Pop value from stack into DE
+     - `pop_hl()`: POP HL (0xE1) - Pop value from stack into HL
+  
+  All handlers:
+  - Perform stack operations with proper SP management
+  - Handle 16-bit values in little-endian format
+  - Update SP register correctly (decrement by 2 for PUSH, increment by 2 for POP)
+  - Return appropriate cycle count (16 cycles for PUSH, 12 cycles for POP)
+
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
+   ```python
+   0xC5: push_bc
+   0xD5: push_de
+   0xE5: push_hl
+   0xF5: push_af
+   0xC1: pop_bc
+   0xD1: pop_de
+   0xE1: pop_hl
+   0xF1: pop_af
+   ```
+
+3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+
+4. Added comprehensive test cases to `tests/cpu/test_stack.py`:
+   - Basic functionality tests for each PUSH and POP instruction
+   - Tests verify correct PC advancement, cycle counting, and SP management
+   - Tests with various register values including edge cases
+   - Test sequences of multiple PUSH/POP operations
+   - All 10 new PUSH/POP tests pass (plus 7 existing stack tests)
+
+**Verification**: All 226 CPU tests pass (including the new PUSH/POP instruction tests)
+
 ### LDH Instructions Implementation (0xE0, 0xF0, 0xE2, 0xF2)
 **Date**: February 8, 2026
 
@@ -544,16 +590,6 @@ Based on the current implementation pattern and code organization, here are the 
    - RLA (Rotate A left through carry) - 0x27
    - RRA (Rotate A right through carry) - 0x2F
    - These are simple single-register operations following the same pattern as existing rotate handlers
-
-#### 2. **Load/Store Instructions**
-   - LDH (LD High) instructions for accessing HRAM (0xE0-0xFA)
-     - LD (n), A (0xE0): Load A into memory at address 0xFF00+n
-     - LD (C), A (0xE2): Load A into memory at address 0xFF00+C
-     - LD A, (n) (0xF0): Load from memory at address 0xFF00+n into A
-     - LD A, (C) (0xF2): Load from memory at address 0xFF00+C into A
-   - PUSH/POP instructions for stack operations
-     - PUSH AF (0xF5), PUSH BC (0xC5), PUSH DE (0xD5), PUSH HL (0xE5)
-     - POP AF (0xF1), POP BC (0xC1), POP DE (0xD1), POP HL (0xE1)
 
 #### 2. **Bit Check/Set/Reset Instructions (CB prefix, 0x40-0x7F)** - Bit manipulation on registers and memory
    - Check if a specific bit is set
