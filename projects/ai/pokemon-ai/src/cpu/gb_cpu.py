@@ -92,7 +92,6 @@ from src.cpu.handlers.ld_r1_r2_handlers import (
     ld_a_hl,
     ld_a_a,
 )
-from src.cpu.handlers.jr_handlers import jr_nz_e8
 from src.cpu.handlers.misc_handlers import nop
 from src.cpu.handlers.arith_handlers import (
     adc_a_b,
@@ -204,8 +203,6 @@ from src.cpu.handlers.rotate_handlers import (
     rrc_a,
     rl_a,
     rr_a,
-    rla_a,
-    rra_a,
 )
 from src.cpu.handlers.stack_handlers import (
     push_af,
@@ -312,8 +309,6 @@ class CPU:
             0x0F: rrc_a,
             0x17: rl_a,
             0x1F: rr_a,
-            0x27: rla_a,
-            0x2F: rra_a,
             0x06: ld_b_n8,
             0x0E: ld_c_n8,
             0x11: ld_de_n16,
@@ -387,7 +382,6 @@ class CPU:
             0x7D: ld_a_l,
             0x7E: ld_a_hl,
             0x7F: ld_a_a,
-            0x20: jr_nz_e8,
             0x80: add_a_b,
             0x81: add_a_c,
             0x82: add_a_d,
@@ -404,10 +398,6 @@ class CPU:
             0x8D: adc_a_l,
             0x8E: adc_a_hl,
             0x8F: adc_a_a,
-            0x07: rlc_a,
-            0x0F: rrc_a,
-            0x17: rl_a,
-            0x1F: rr_a,
             0x90: sub_a_b,
             0x91: sub_a_c,
             0x92: sub_a_d,
