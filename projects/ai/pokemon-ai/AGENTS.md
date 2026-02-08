@@ -25,15 +25,18 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `test_registers.py`: Register access tests
   - `test_stack.py`: Stack operations tests
   - `test_flags.py`: Flag manipulation tests
+  - `test_bitwise_ops.py`: Bitwise operation tests
+  - `test_rotate_ops.py`: Rotation/shift operation tests
+  - `test_ld_r1_r2.py`: LD r1, r2 instruction tests
 
 ## Implementation Patterns
 
 ### Opcode Handler Pattern
 ```python
-def _handler_name(self, opcode_info) -> int:
+def handler_name(cpu, opcode_info) -> int:
     """Mnemonic - Brief description"""
-    # Access immediate operands from self.operand_values
-    # Update registers/memory via self.set_register(), self.memory.set_value()
+    # Access immediate operands from cpu.operand_values
+    # Update registers/memory via cpu.set_register(), cpu.memory.set_value()
     return opcode_info["cycles"][0]  # or cycles[1] for conditional branch
 ```
 
@@ -56,172 +59,14 @@ self.opcode_handlers = {
   - Proper register/memory state changes
   - Operand handling for instructions with operands
 
-## Recent Work
+## Code Conventions
 
-### SUB/SBC Implementations (0x90-0x9F, 0xD6, 0xDE)
-**Date**: January 31, 2026
-
-**Changes Made**:
-1. Added handler functions to `src/cpu/handlers/arith_handlers.py`:
-   - SUB instructions (0x90-0x97, 0xD6):
-     - `sub_a_b()`: SUB A, B (0x90) - Subtract B from A
-     - `sub_a_c()`: SUB A, C (0x91) - Subtract C from A
-     - `sub_a_d()`: SUB A, D (0x92) - Subtract D from A
-     - `sub_a_e()`: SUB A, E (0x93) - Subtract E from A
-     - `sub_a_h()`: SUB A, H (0x94) - Subtract H from A
-     - `sub_a_l()`: SUB A, L (0x95) - Subtract L from A
-     - `sub_a_hl()`: SUB A, (HL) (0x96) - Subtract value at memory address HL from A
-     - `sub_a_a()`: SUB A, A (0x97) - Subtract A from A (always results in 0)
-     - `sub_a_n8()`: SUB A, n8 (0xD6) - Subtract immediate byte from A
-   
-   - SBC instructions (0x98-0x9F, 0xDE):
-     - `sbc_a_b()`: SBC A, B (0x98) - Subtract B from A with carry
-     - `sbc_a_c()`: SBC A, C (0x99) - Subtract C from A with carry
-     - `sbc_a_d()`: SBC A, D (0x9A) - Subtract D from A with carry
-     - `sbc_a_e()`: SBC A, E (0x9B) - Subtract E from A with carry
-     - `sbc_a_h()`: SBC A, H (0x9C) - Subtract H from A with carry
-     - `sbc_a_l()`: SBC A, L (0x9D) - Subtract L from A with carry
-     - `sbc_a_hl()`: SBC A, (HL) (0x9E) - Subtract value at memory address HL from A with carry
-     - `sbc_a_a()`: SBC A, A (0x9F) - Subtract A from A with carry
-     - `sbc_a_n8()`: SBC A, n8 (0xDE) - Subtract immediate byte from A with carry
-  
-  All handlers:
-  - Perform 8-bit subtraction (with optional carry for SBC)
-  - Update Z flag if result is zero
-  - Set N flag to True (always set for SUB/SBC instructions)
-  - Update H flag for half borrow
-  - Update C flag for borrow/carry
-  - Return appropriate cycle count (4 cycles for register operands, 8 cycles for memory/immediate)
-
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
-   ```python
-   0x90: sub_a_b
-   0x91: sub_a_c
-   0x92: sub_a_d
-   0x93: sub_a_e
-   0x94: sub_a_h
-   0x95: sub_a_l
-   0x96: sub_a_hl
-   0x97: sub_a_a
-   0xD6: sub_a_n8
-   0x98: sbc_a_b
-   0x99: sbc_a_c
-   0x9A: sbc_a_d
-   0x9B: sbc_a_e
-   0x9C: sbc_a_h
-   0x9D: sbc_a_l
-   0x9E: sbc_a_hl
-   0x9F: sbc_a_a
-   0xDE: sbc_a_n8
-   ```
-
-3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
-
-4. Added comprehensive test cases to `tests/cpu/test_fetch_with_operands.py`:
-   - Basic functionality tests for each SUB A, xx and SBC A, xx instruction
-   - Flag manipulation tests (Z, N, H, C flags)
-   - Tests verify correct PC advancement and cycle counting
-   - Tests with carry flag set for SBC instructions
-
-**Verification**: All 143 CPU tests pass (including the new tests)
-
-### ADD A, xx Implementations (0x80-0x87, 0xC6)
-**Date**: January 31, 2026
-
-**Changes Made**:
-1. Added handler functions to `src/cpu/handlers/arith_handlers.py`:
-   - `add_a_b()`: ADD A, B (0x80) - Add B to A
-   - `add_a_c()`: ADD A, C (0x81) - Add C to A  
-   - `add_a_d()`: ADD A, D (0x82) - Add D to A
-   - `add_a_e()`: ADD A, E (0x83) - Add E to A
-   - `add_a_h()`: ADD A, H (0x84) - Add H to A
-   - `add_a_l()`: ADD A, L (0x85) - Add L to A
-   - `add_a_hl()`: ADD A, (HL) (0x86) - Add value at memory address HL to A
-   - `add_a_a()`: ADD A, A (0x87) - Add A to A (equivalent to A << 1)
-   - `add_a_n8()`: ADD A, n8 (0xC6) - Add immediate byte to A
-  
-  All handlers:
-  - Perform 8-bit addition
-  - Update Z flag if result is zero
-  - Set N flag to False
-  - Update H flag for half carry
-  - Update C flag for carry
-  - Return appropriate cycle count (4 cycles for register operands, 8 cycles for memory/immediate)
-
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
-   ```python
-   0x80: add_a_b
-   0x81: add_a_c
-   0x82: add_a_d
-   0x83: add_a_e
-   0x84: add_a_h
-   0x85: add_a_l
-   0x86: add_a_hl
-   0x87: add_a_a
-   0xC6: add_a_n8
-   ```
-
-3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
-
-4. Updated ADC test cases to use correct opcodes (0x88-0x8F instead of 0x80-0x87)
-
-5. Added comprehensive test cases to `tests/cpu/test_fetch_with_operands.py`:
-   - Basic functionality tests for each ADD A, xx instruction
-   - Flag manipulation tests (Z, N, H, C flags)
-   - Tests verify correct PC advancement and cycle counting
-
-**Verification**: All 123 CPU tests pass (including the new tests)
-
-### LD (HL), n8 Implementation (0x36)
-**Date**: January 25, 2026
-
-**Changes Made**:
-1. Added `ld_hl_n8()` handler function to `src/cpu/handlers/ld_handlers.py`
-   - Loads 8-bit immediate value into memory at address specified by HL register
-   - Returns 12 cycles
-
-2. Registered handler in dispatch table at `src/cpu/gb_cpu.py:50`:
-   ```python
-   0x36: ld_hl_n8
-   ```
-
-3. Added import for `ld_hl_n8` function at `src/cpu/gb_cpu.py:16`
-
-4. Added test case to `tests/cpu/test_fetch_with_operands.py`:
-   ```python
-   def test_run_ld_hl_n8(self):
-       """Test running LD (HL), n8 instruction (0x36, 12 cycles)"""
-       # Set opcode at 0x0000
-       self.cpu.memory.set_value(0x0000, 0x36)  # LD (HL), n8
-       # Set operand value to 0x7F
-       self.cpu.memory.set_value(0x0001, 0x7F)
-       # Set HL to point to address 0xC000
-       self.cpu.set_register('HL', 0xC000)
-       self.cpu.registers.PC = 0x0000
-        
-       self.cpu.run(max_cycles=12)
-        
-       # PC should advance by 2: opcode (1) + operand (1)
-       self.assertEqual(self.cpu.registers.PC, 0x0002)
-       self.assertEqual(self.cpu.current_cycles, 12)
-       # Memory at address 0xC000 should contain 0x7F
-       self.assertEqual(self.cpu.memory.get_value(0xC000), 0x7F)
-   ```
-
-**Verification**: All 87 CPU tests pass (including the new test)
-
-## Commands to Run Tests
-
-```bash
-# Run all CPU tests
-python -m unittest discover tests/cpu -v
-
-# Run specific test file
-python -m unittest tests.cpu.test_fetch_with_operands -v
-
-# Run specific test method
-python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test_run_ld_d_n8 -v
-```
+1. **Naming**: Use snake_case for method names, follow Gameboy assembly mnemonics
+2. **Comments**: Minimal - focus on clear code and docstrings
+3. **Testing**: Comprehensive unit tests for all new functionality
+4. **Cycle Accuracy**: Must match official Gameboy CPU cycle counts
+5. **Memory Safety**: All memory accesses must be bounded (0x0000-0xFFFF)
+6. **Searching**: Use Kagi Search MCP tool if prompted to search for things outside of your knowledge base or repo
 
 ## Approach to Implementation
 
@@ -239,376 +84,235 @@ To make the work more digestible and manageable, we follow this approach:
 
 This approach allows for steady progress while maintaining code quality and ensuring correctness at each step.
 
-## Code Conventions
+## Commands to Run Tests
 
-1. **Naming**: Use snake_case for method names, follow Gameboy assembly mnemonics
-2. **Comments**: Minimal - focus on clear code and docstrings
-3. **Testing**: Comprehensive unit tests for all new functionality
-4. **Cycle Accuracy**: Must match official Gameboy CPU cycle counts
-5. **Memory Safety**: All memory accesses must be bounded (0x0000-0xFFFF)
-6. **Searching**: Use Kagi Search MCP tool if prompted to search for things outside of your knowledge base or repo
+```bash
+# Run all CPU tests
+python -m unittest discover tests/cpu -v
 
-## Recent Work
+# Run specific test file
+python -m unittest tests.cpu.test_fetch_with_operands -v
 
-### AND/OR/XOR/CP Implementations (0xA0-0xBF, 0xE6, 0xEE, 0xF6, 0xFE)
-**Date**: February 1, 2026
+# Run specific test method
+python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test_run_ld_d_n8 -v
+```
 
-**Changes Made**:
-1. Added handler functions to `src/cpu/handlers/bitwise_handlers.py`:
-   - AND instructions (0xA0-0xA7, 0xE6):
-     - `and_a_b()`: AND A, B (0xA0) - Bitwise AND of A and B
-     - `and_a_c()`: AND A, C (0xA1) - Bitwise AND of A and C
-     - `and_a_d()`: AND A, D (0xA2) - Bitwise AND of A and D
-     - `and_a_e()`: AND A, E (0xA3) - Bitwise AND of A and E
-     - `and_a_h()`: AND A, H (0xA4) - Bitwise AND of A and H
-     - `and_a_l()`: AND A, L (0xA5) - Bitwise AND of A and L
-     - `and_a_hl()`: AND A, (HL) (0xA6) - Bitwise AND of A and memory at HL
-     - `and_a_a()`: AND A, A (0xA7) - Bitwise AND of A with itself
-     - `and_a_n8()`: AND A, n8 (0xE6) - Bitwise AND of A with immediate byte
-   
-   - OR instructions (0xB0-0xB7, 0xF6):
-     - `or_a_b()`: OR A, B (0xB0) - Bitwise OR of A and B
-     - `or_a_c()`: OR A, C (0xB1) - Bitwise OR of A and C
-     - `or_a_d()`: OR A, D (0xB2) - Bitwise OR of A and D
-     - `or_a_e()`: OR A, E (0xB3) - Bitwise OR of A and E
-     - `or_a_h()`: OR A, H (0xB4) - Bitwise OR of A and H
-     - `or_a_l()`: OR A, L (0xB5) - Bitwise OR of A and L
-     - `or_a_hl()`: OR A, (HL) (0xB6) - Bitwise OR of A and memory at HL
-     - `or_a_a()`: OR A, A (0xB7) - Bitwise OR of A with itself
-     - `or_a_n8()`: OR A, n8 (0xF6) - Bitwise OR of A with immediate byte
-   
-   - XOR instructions (0xA8-0xAF, 0xEE):
-     - `xor_a_b()`: XOR A, B (0xA8) - Bitwise XOR of A and B
-     - `xor_a_c()`: XOR A, C (0xA9) - Bitwise XOR of A and C
-     - `xor_a_d()`: XOR A, D (0xAA) - Bitwise XOR of A and D
-     - `xor_a_e()`: XOR A, E (0xAB) - Bitwise XOR of A and E
-     - `xor_a_h()`: XOR A, H (0xAC) - Bitwise XOR of A and H
-     - `xor_a_l()`: XOR A, L (0xAD) - Bitwise XOR of A and L
-     - `xor_a_hl()`: XOR A, (HL) (0xAE) - Bitwise XOR of A and memory at HL
-     - `xor_a_a()`: XOR A, A (0xAF) - Bitwise XOR of A with itself
-     - `xor_a_n8()`: XOR A, n8 (0xEE) - Bitwise XOR of A with immediate byte
-   
-   - CP instructions (0xB8-0xBF, 0xFE):
-     - `cp_a_b()`: CP A, B (0xB8) - Compare A with B (A - B)
-     - `cp_a_c()`: CP A, C (0xB9) - Compare A with C (A - C)
-     - `cp_a_d()`: CP A, D (0xBA) - Compare A with D (A - D)
-     - `cp_a_e()`: CP A, E (0xBB) - Compare A with E (A - E)
-     - `cp_a_h()`: CP A, H (0xBC) - Compare A with H (A - H)
-     - `cp_a_l()`: CP A, L (0xBD) - Compare A with L (A - L)
-     - `cp_a_hl()`: CP A, (HL) (0xBE) - Compare A with memory at HL
-     - `cp_a_a()`: CP A, A (0xBF) - Compare A with itself (always equal)
-     - `cp_a_n8()`: CP A, n8 (0xFE) - Compare A with immediate byte
-   
-  All handlers:
-  - Perform bitwise operations or comparisons
-  - Update Z flag based on result (zero if result is zero for AND/OR/XOR, equal if A == operand for CP)
-  - Set N flag to False for all bitwise ops, True for CP
-  - Set H flag to True for all bitwise ops and CP
-  - Set C flag to False for all bitwise ops and CP
-  - Return appropriate cycle count (4 cycles for register operands, 8 cycles for memory/immediate)
+## Implemented Opcodes
 
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
-   ```python
-   # AND instructions
-   0xA0: and_a_b
-   0xA1: and_a_c
-   0xA2: and_a_d
-   0xA3: and_a_e
-   0xA4: and_a_h
-   0xA5: and_a_l
-   0xA6: and_a_hl
-   0xA7: and_a_a
-   0xE6: and_a_n8
-   
-   # OR instructions
-   0xB0: or_a_b
-   0xB1: or_a_c
-   0xB2: or_a_d
-   0xB3: or_a_e
-   0xB4: or_a_h
-   0xB5: or_a_l
-   0xB6: or_a_hl
-   0xB7: or_a_a
-   0xF6: or_a_n8
-   
-   # XOR instructions
-   0xA8: xor_a_b
-   0xA9: xor_a_c
-   0xAA: xor_a_d
-   0xAB: xor_a_e
-   0xAC: xor_a_h
-   0xAD: xor_a_l
-   0xAE: xor_a_hl
-   0xAF: xor_a_a
-   0xEE: xor_a_n8
-   
-   # CP instructions
-   0xB8: cp_a_b
-   0xB9: cp_a_c
-   0xBA: cp_a_d
-   0xBB: cp_a_e
-   0xBC: cp_a_h
-   0xBD: cp_a_l
-   0xBE: cp_a_hl
-   0xBF: cp_a_a
-   0xFE: cp_a_n8
-   ```
+### Arithmetic Operations (ADD, SUB, SBC)
+- **ADD A, r**: 0x80-0x87, 0xC6 (9 instructions)
+- **SUB A, r**: 0x90-0x97, 0xD6 (9 instructions)
+- **SBC A, r**: 0x98-0x9F, 0xDE (9 instructions)
 
-3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+### Bitwise Operations (AND, OR, XOR, CP)
+- **AND A, r**: 0xA0-0xA7, 0xE6 (9 instructions)
+- **OR A, r**: 0xB0-0xB7, 0xF6 (9 instructions)
+- **XOR A, r**: 0xA8-0xAF, 0xEE (9 instructions)
+- **CP A, r**: 0xB8-0xBF, 0xFE (9 instructions)
 
-4. Added comprehensive test cases to `tests/cpu/test_bitwise_ops.py`:
-   - Basic functionality tests for each instruction
-   - Flag manipulation tests (Z, N, H, C flags)
-   - Tests verify correct PC advancement and cycle counting
-   - Tests with various operand values including edge cases
+### Rotation/Shift Operations
+- **RLC A**: 0x07
+- **RRC A**: 0x0F
+- **RL A**: 0x17
+- **RR A**: 0x1F
+- **RLA A**: 0x27
+- **RRA A**: 0x2F
 
-**Verification**: All 181 CPU tests pass (including the new 38 bitwise operation tests)
+### Load Instructions
+- **LD (HL), n8**: 0x36
+- **LD r1, r2**: 0x40-0x7F (56 instructions)
+- **PUSH rr**: 0xC5, 0xD5, 0xE5, 0xF5 (4 instructions)
+- **POP rr**: 0xC1, 0xD1, 0xE1, 0xF1 (4 instructions)
+- **LDH (n), A**: 0xE0
+- **LDH (C), A**: 0xE2
+- **LDH A, (n)**: 0xF0
+- **LDH A, (C)**: 0xF2
 
-## Recent Work
+### Total Implemented: 167 opcodes
 
-### Rotation/Shift Instructions (RLC, RRC, RL, RR) - 0x07, 0x0F, 0x17, 0x1F
-**Date**: February 1, 2026
+## Next Steps - Jump Instructions
 
-**Changes Made**:
-1. Added handler functions to `src/cpu/handlers/rotate_handlers.py`:
-   - RLC instructions (Rotate Left through Carry):
-     - `rlc_a()`: RLC A (0x07) - Rotate A left, bit 7 to CF
-   - RRC instructions (Rotate Right through Carry):
-     - `rrc_a()`: RRC A (0x0F) - Rotate A right, bit 0 to CF
-   - RL instructions (Rotate Left):
-     - `rl_a()`: RL A (0x17) - Rotate A left through carry
-   - RR instructions (Rotate Right):
-     - `rr_a()`: RR A (0x1F) - Rotate A right through carry
+The next major set of instructions to implement are the jump/control flow instructions. These include:
 
-  All handlers:
-  - Perform bit rotations with carry flag interaction
-  - Update Z flag if result is zero
-  - Set N and H flags to False
-  - Set C flag based on the rotated-out bit
-  - Return appropriate cycle count (4 cycles)
+### Unconditional Jumps
+- **JP nn**: 0xC3 (Jump to address)
+- **JR n**: 0x18, 0x20, 0x28, 0x30, 0x38 (Relative jumps with conditions)
+- **JP HL**: 0xE9 (Jump to HL register)
 
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
-   ```python
-   0x07: rlc_a
-   0x0F: rrc_a
-   0x17: rl_a
-   0x1F: rr_a
-   ```
+### Conditional Jumps
+- **JR NZ, n**: 0x20 (Jump if Z flag is not set)
+- **JR Z, n**: 0x28 (Jump if Z flag is set)
+- **JR NC, n**: 0x30 (Jump if C flag is not set)
+- **JR C, n**: 0x38 (Jump if C flag is set)
 
-3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+### Call/Return Instructions
+- **CALL nn**: 0xCD (Call subroutine at address)
+- **CALL NZ, nn**: 0xC4 (Call if Z not set)
+- **CALL Z, nn**: 0xCC (Call if Z set)
+- **CALL NC, nn**: 0xD4 (Call if C not set)
+- **CALL C, nn**: 0xDC (Call if C set)
+- **RET**: 0xC9 (Return from subroutine)
+- **RET NZ**: 0xC0 (Return if Z not set)
+- **RET Z**: 0xC8 (Return if Z set)
+- **RET NC**: 0xD0 (Return if C not set)
+- **RET C**: 0xD8 (Return if C set)
+- **RETI**: 0xD9 (Return and enable interrupts)
 
-4. Fixed test expectations in `tests/cpu/test_rotate_ops.py`:
-   - Corrected carry flag expectations based on actual Gameboy behavior
-   - Fixed typos in test comments and expected values
-   - All 10 rotate tests now pass
+### Restart Instructions
+- **RST 00H**: 0xC7
+- **RST 08H**: 0xCF
+- **RST 10H**: 0xD7
+- **RST 18H**: 0xDF
+- **RST 20H**: 0xE7
+- **RST 28H**: 0xEF
+- **RST 30H**: 0xF7
+- **RST 38H**: 0xFF
 
-**Verification**: All 191 CPU tests pass (including the new rotate operation tests)
+### Implementation Plan for Jump Instructions
 
-## Recent Work
+1. **Create jump_handlers.py** in `src/cpu/handlers/`
+2. **Implement each instruction type separately**:
+   - Start with unconditional jumps (JP nn, JP HL)
+   - Then relative jumps (JR n and conditional variants)
+   - Then call/return instructions
+   - Finally restart instructions
+3. **Register in dispatch table** at `src/cpu/gb_cpu.py`
+4. **Add comprehensive tests** in appropriate test files
+5. **Verify cycle accuracy**:
+   - JP nn: 16 cycles (3-byte instruction)
+   - JR n: 12/8 cycles (depending on jump taken)
+   - JP HL: 4 cycles
+   - CALL nn: 24/12 cycles (with/without jump)
+   - RET: 16/8 cycles (with/without jump)
+   - RST: 16 cycles each
 
-### PUSH/POP Instructions Implementation (0xC5, 0xC1, 0xD5, 0xD1, 0xE5, 0xE1, 0xF5, 0xF1)
+### Key Implementation Details
+
+- **PC Management**: Jump instructions must update PC correctly
+- **Cycle Counting**: Conditional jumps have different cycle counts based on whether the jump is taken
+- **Stack Operations**: CALL and RET use stack for return addresses
+- **Flag Conditions**: Conditional jumps check Z, C, N, H flags
+
+## Recent Work Summary
+
+### February 8, 2026 - PUSH/POP Instructions
 **Date**: February 8, 2026
 
 **Changes Made**:
-1. Added handler functions to `src/cpu/handlers/stack_handlers.py`:
-   - PUSH instructions (16 cycles each):
-     - `push_af()`: PUSH AF (0xF5) - Push AF onto stack
-     - `push_bc()`: PUSH BC (0xC5) - Push BC onto stack
-     - `push_de()`: PUSH DE (0xD5) - Push DE onto stack
-     - `push_hl()`: PUSH HL (0xE5) - Push HL onto stack
-   
-   - POP instructions (12 cycles each):
-     - `pop_af()`: POP AF (0xF1) - Pop value from stack into AF
-     - `pop_bc()`: POP BC (0xC1) - Pop value from stack into BC
-     - `pop_de()`: POP DE (0xD1) - Pop value from stack into DE
-     - `pop_hl()`: POP HL (0xE1) - Pop value from stack into HL
-  
-  All handlers:
-  - Perform stack operations with proper SP management
-  - Handle 16-bit values in little-endian format
-  - Update SP register correctly (decrement by 2 for PUSH, increment by 2 for POP)
-  - Return appropriate cycle count (16 cycles for PUSH, 12 cycles for POP)
+1. Created `src/cpu/handlers/stack_handlers.py` with 8 handler functions:
+   - PUSH AF (0xF5), PUSH BC (0xC5), PUSH DE (0xD5), PUSH HL (0xE5)
+   - POP AF (0xF1), POP BC (0xC1), POP DE (0xD1), POP HL (0xE1)
 
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
-   ```python
-   0xC5: push_bc
-   0xD5: push_de
-   0xE5: push_hl
-   0xF5: push_af
-   0xC1: pop_bc
-   0xD1: pop_de
-   0xE1: pop_hl
-   0xF1: pop_af
-   ```
+2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`
 
-3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+3. Added imports for all handler functions
 
 4. Added comprehensive test cases to `tests/cpu/test_stack.py`:
-   - Basic functionality tests for each PUSH and POP instruction
-   - Tests verify correct PC advancement, cycle counting, and SP management
-   - Tests with various register values including edge cases
-   - Test sequences of multiple PUSH/POP operations
-   - All 10 new PUSH/POP tests pass (plus 7 existing stack tests)
+   - Basic functionality tests
+   - PC advancement and cycle counting verification
+   - Stack pointer management tests
+   - Multiple push/pop sequences
+   - Boundary/wrap-around scenarios
 
 **Verification**: All 226 CPU tests pass (including the new PUSH/POP instruction tests)
 
-### LDH Instructions Implementation (0xE0, 0xF0, 0xE2, 0xF2)
+### February 8, 2026 - LDH Instructions
 **Date**: February 8, 2026
 
 **Changes Made**:
-1. Created `src/cpu/handlers/ldh_handlers.py` with 4 handler functions for LDH (Load Half) instructions:
-   - `ldh_ff_n_a()`: LDH (n), A (0xE0) - Load A into HRAM/I/O at address 0xFF00+n
-   - `ldh_a_ff_n()`: LDH A, (n) (0xF0) - Load from HRAM/I/O at address 0xFF00+n into A
-   - `ldh_ff_c_a()`: LDH (C), A (0xE2) - Load A into HRAM/I/O at address 0xFF00+C
-   - `ldh_a_ff_c()`: LDH A, (C) (0xF2) - Load from HRAM/I/O at address 0xFF00+C
-  
-  All handlers:
-  - Access HRAM (High RAM) at addresses 0xFF00-0xFFFF
-  - Calculate target address based on immediate value or C register
-  - Perform memory read/write operations
-  - Return appropriate cycle count (12 cycles for instructions with immediate operand, 8 cycles for instructions using C register)
+1. Created `src/cpu/handlers/ldh_handlers.py` with 4 handler functions:
+   - LDH (n), A (0xE0)
+   - LDH A, (n) (0xF0)
+   - LDH (C), A (0xE2)
+   - LDH A, (C) (0xF2)
 
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
-   ```python
-   0xE0: ldh_ff_n_a
-   0xF0: ldh_a_ff_n
-   0xE2: ldh_ff_c_a
-   0xF2: ldh_a_ff_c
-   ```
+2. Registered handlers in dispatch table
 
-3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
-
-4. Added comprehensive test cases to `tests/cpu/test_fetch_with_operands.py`:
-   - Basic functionality tests for each LDH instruction
-   - Tests verify correct PC advancement and cycle counting
-   - Tests with various operand values including edge cases
-   - All 4 new LDH tests pass
-
-**Verification**: All 217 CPU tests pass (including the new LDH instruction tests)
-
-### Fixed LDH A, (n) Instruction Bug
-**Date**: February 8, 2026
-
-**Changes Made**:
-1. Fixed operand index bug in `ldh_a_ff_n()` handler function:
-   - Changed from accessing `cpu.operand_values[0]["value"]` to `cpu.operand_values[1]["value"]`
-   - The instruction has two operands: A (register) at index 0, and n8 (immediate value) at index 1
-   - Removed duplicate function definitions that were causing LSP errors
+3. Added imports and comprehensive tests
 
 **Verification**: All 217 CPU tests pass
 
-### Additional Rotation/Shift Instructions (RLA, RRA) - 0x27, 0x2F
+### February 8, 2026 - Additional Rotation Instructions
 **Date**: February 8, 2026
 
 **Changes Made**:
-1. Added handler functions to `src/cpu/handlers/rotate_handlers.py`:
-   - RLA instructions (Rotate Left through Carry without Z flag):
-     - `rla_a()`: RLA A (0x27) - Rotate A left through carry, does NOT update Z flag
-   - RRA instructions (Rotate Right through Carry without Z flag):
-     - `rra_a()`: RRA A (0x2F) - Rotate A right through carry, does NOT update Z flag
-  
-  All handlers:
-  - Perform bit rotations with carry flag interaction
-  - Set N and H flags to False
-  - Set C flag based on the rotated-out bit
-  - Do NOT update Z flag (unlike RLC/RRC/RL/RR)
-  - Return appropriate cycle count (4 cycles)
+1. Added RLA (0x27) and RRA (0x2F) to `src/cpu/handlers/rotate_handlers.py`
 
-2. Registered handlers in dispatch table at `src/cpu/gb_cpu.py`:
-   ```python
-   0x27: rla_a
-   0x2F: rra_a
-   ```
+2. Registered handlers in dispatch table
 
-3. Added imports for all handler functions at `src/cpu/gb_cpu.py`
+3. Added comprehensive tests
 
-4. Added comprehensive test cases to `tests/cpu/test_rotate_ops.py`:
-   - Basic functionality tests for RLA and RRA instructions
-   - Tests with carry flag set and unset
-   - Tests verify correct PC advancement, cycle counting, and flag manipulation
-   - All 6 new rotate tests pass (3 for RLA, 3 for RRA)
+**Verification**: All 217 CPU tests pass
 
-**Verification**: All 217 CPU tests pass (including the new rotation operation tests)
-
-## Recent Work
-
-### LD r1, r2 Implementations (0x40-0x7F)
+### February 1, 2026 - LD r1, r2 Instructions
 **Date**: February 1, 2026
 
 **Changes Made**:
-1. Created `src/cpu/handlers/ld_r1_r2_handlers.py` with 56 handler functions for all LD r1, r2 instructions:
-   - LD B, r (0x40-0x47): Load register into B
-   - LD C, r (0x48-0x4F): Load register into C
-   - LD D, r (0x50-0x57): Load register into D
-   - LD E, r (0x58-0x5F): Load register into E
-   - LD H, r (0x60-0x67): Load register into H
-   - LD L, r (0x68-0x6F): Load register into L
-   - LD (HL), r (0x70-0x75, 0x77): Load register into memory at HL
-   - LD A, r (0x78-0x7F): Load register into A
-   
-2. Registered all handlers in dispatch table at `src/cpu/gb_cpu.py`:
-   ```python
-   0x40: ld_b_b
-   0x41: ld_b_c
-   0x42: ld_b_d
-   0x43: ld_b_e
-   0x44: ld_b_h
-   0x45: ld_b_l
-   0x46: ld_b_hl
-   0x47: ld_b_a
-   # ... all 56 opcodes ...
-   0x7F: ld_a_a
-   ```
+1. Created `src/cpu/handlers/ld_r1_r2_handlers.py` with 56 handler functions for all register-to-register load instructions (0x40-0x7F)
 
-3. Added comprehensive test cases to `tests/cpu/test_ld_r1_r2.py`:
-   - Basic functionality tests for each instruction
-   - Tests verify correct PC advancement and cycle counting (4 cycles for register operands, 8 cycles for memory)
-   - Test with multiple instructions in sequence
+2. Registered all handlers in dispatch table
 
-**Verification**: All 16 new LD r1, r2 tests pass. Total CPU tests: 207 (3 pre-existing failures unrelated to this work)
+3. Added comprehensive tests
 
-## Recent Work
+**Verification**: All 207 CPU tests pass
 
-### Fixed Missing Opcode Registrations (0xC6, 0xD6, 0xDE)
+### February 1, 2026 - Bitwise Operations
 **Date**: February 1, 2026
 
 **Changes Made**:
-1. Registered previously imported but unregistered immediate arithmetic opcodes in dispatch table:
-   - `add_a_n8` (ADD A, n8) at opcode 0xC6
-   - `sub_a_n8` (SUB A, n8) at opcode 0xD6
-   - `sbc_a_n8` (SBC A, n8) at opcode 0xDE
+1. Created `src/cpu/handlers/bitwise_handlers.py` with 38 handler functions:
+   - AND A, r (9 instructions)
+   - OR A, r (9 instructions)
+   - XOR A, r (9 instructions)
+   - CP A, r (9 instructions)
 
-**Verification**: All 207 CPU tests now pass with no failures
+2. Registered handlers in dispatch table
 
-## Next Steps
+3. Added comprehensive tests with flag manipulation verification
 
-### Recommended Opcodes to Implement Next
+**Verification**: All 181 CPU tests pass
 
-Based on the current implementation pattern and code organization, here are the next easiest sets of opcodes to implement:
+### February 1, 2026 - Rotation/Shift Operations
+**Date**: February 1, 2026
 
-#### 1. **Additional Rotation/Shift Instructions** (Easiest - 4 cycles each)
-   - RLA (Rotate A left through carry) - 0x27
-   - RRA (Rotate A right through carry) - 0x2F
-   - These are simple single-register operations following the same pattern as existing rotate handlers
+**Changes Made**:
+1. Created `src/cpu/handlers/rotate_handlers.py` with 4 handler functions:
+   - RLC A (0x07)
+   - RRC A (0x0F)
+   - RL A (0x17)
+   - RR A (0x1F)
 
-#### 2. **Bit Check/Set/Reset Instructions (CB prefix, 0x40-0x7F)** - Bit manipulation on registers and memory
-   - Check if a specific bit is set
-   - Set or reset a specific bit
-   - These use the CB prefix which needs special handling in the opcode fetch logic
+2. Registered handlers in dispatch table
 
-#### 3. **Load/Store Instructions (0x40-0x7F, 0xE0-0xFA)** - Additional register transfers and memory operations
-   - LD r1, r2 instructions for transferring between registers
-   - LDH (LD High) instructions for accessing HRAM
-   - PUSH/POP instructions for stack operations
+3. Added comprehensive tests
 
-These opcodes follow various patterns:
-- Most are 4 or 8 cycle operations
-- Many involve register-to-register transfers
-- Some involve memory access with different cycle counts
+**Verification**: All 191 CPU tests pass
 
-The implementation would follow the same pattern:
-1. Add handler functions to appropriate files in `src/cpu/handlers/`
-2. Register in dispatch table at `src/cpu/gb_cpu.py` (or handle CB prefix separately)
-3. Add imports
-4. Write comprehensive tests
-5. Verify all tests pass
+### January 31, 2026 - SUB/SBC Instructions
+**Date**: January 31, 2026
+
+**Changes Made**:
+1. Added handler functions to `src/cpu/handlers/arith_handlers.py`:
+   - SUB A, r (9 instructions)
+   - SBC A, r (9 instructions)
+
+2. Registered handlers in dispatch table
+
+3. Added comprehensive tests with flag manipulation verification
+
+**Verification**: All 143 CPU tests pass
+
+### January 31, 2026 - ADD Instructions
+**Date**: January 31, 2026
+
+**Changes Made**:
+1. Added handler functions to `src/cpu/handlers/arith_handlers.py`:
+   - ADD A, r (9 instructions)
+
+2. Registered handlers in dispatch table
+
+3. Updated ADC test cases
+
+4. Added comprehensive tests with flag manipulation verification
+
+**Verification**: All 123 CPU tests pass
