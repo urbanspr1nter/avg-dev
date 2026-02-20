@@ -250,16 +250,23 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 
 ### Miscellaneous
 - **NOP**: 0x00
+- **SCF**: 0x37 (Set Carry Flag)
+- **CCF**: 0x3F (Complement Carry Flag)
+- **CPL**: 0x2F (Complement A register)
 
-### Total Implemented: ~204 opcodes
+### Total Implemented: ~207 opcodes
 
 ## Not Yet Implemented (Key Missing Opcodes)
 
 These are important opcodes still needed for a functional emulator:
 - **DAA** (0x27): Decimal Adjust Accumulator
-- **CPL** (0x2F): Complement A register
-- **SCF** (0x37): Set Carry Flag
-- **CCF** (0x3F): Complement Carry Flag
+- **HALT** (0x76): Halt CPU until interrupt
+- **DI** (0xF3): Disable Interrupts
+- **EI** (0xFB): Enable Interrupts
+- **LD HL, n16** (0x21) and other 16-bit loads (0x01, 0x11, 0x31)
+- **HALT** (0x76): Halt CPU until interrupt
+- **DI** (0xF3): Disable Interrupts
+- **EI** (0xFB): Enable Interrupts
 - **HALT** (0x76): Halt CPU until interrupt
 - **DI** (0xF3): Disable Interrupts
 - **EI** (0xFB): Enable Interrupts
@@ -272,4 +279,4 @@ These are important opcodes still needed for a functional emulator:
 
 ## Current Test Status
 
-253 tests passing as of February 8, 2026.
+258 tests passing as of February 20, 2026.

@@ -143,6 +143,80 @@ class TestFlags(unittest.TestCase):
         self.assertFalse(self.cpu.get_flag("H"))
         self.assertTrue(self.cpu.get_flag("C"))
 
+    def test_ccf_instruction_carry_false(self):
+        """Test CCF (0x3F) - Complement Carry Flag when carry is False"""
+        self.cpu.set_register("PC", 0x100)
+        self.cpu.memory.set_value(0x100, 0x3F)
+        self.cpu.set_flag("N", True)
+        self.cpu.set_flag("H", True)
+        self.cpu.set_flag("C", False)
+
+        self.cpu.run(max_cycles=4)
+
+        self.assertEqual(self.cpu.get_register("PC"), 0x101)
+        self.assertFalse(self.cpu.get_flag("N"))
+        self.assertFalse(self.cpu.get_flag("H"))
+        self.assertTrue(self.cpu.get_flag("C"))
+
+    def test_ccf_instruction_carry_true(self):
+        """Test CCF (0x3F) - Complement Carry Flag when carry is True"""
+        self.cpu.set_register("PC", 0x100)
+        self.cpu.memory.set_value(0x100, 0x3F)
+        self.cpu.set_flag("N", True)
+        self.cpu.set_flag("H", True)
+        self.cpu.set_flag("C", True)
+
+        self.cpu.run(max_cycles=4)
+
+        self.assertEqual(self.cpu.get_register("PC"), 0x101)
+        self.assertFalse(self.cpu.get_flag("N"))
+        self.assertFalse(self.cpu.get_flag("H"))
+        self.assertFalse(self.cpu.get_flag("C"))
+
+    def test_cpl_instruction(self):
+        """Test CPL (0x2F) - Complement A register"""
+        self.cpu.set_register("PC", 0x100)
+        self.cpu.memory.set_value(0x100, 0x2F)
+        self.cpu.set_register("A", 0x55)  # Binary: 01010101
+        self.cpu.set_flag("N", False)
+        self.cpu.set_flag("H", False)
+        self.cpu.set_flag("Z", True)
+        self.cpu.set_flag("C", True)
+
+        self.cpu.run(max_cycles=4)
+
+        self.assertEqual(self.cpu.get_register("PC"), 0x101)
+        self.assertEqual(
+            self.cpu.get_register("A"), 0xAA
+        )  # Binary: 10101010 (complement of 0x55)
+        self.assertTrue(self.cpu.get_flag("N"))
+        self.assertTrue(self.cpu.get_flag("H"))
+        # Z and C flags should be unaffected
+        self.assertTrue(self.cpu.get_flag("Z"))
+        self.assertTrue(self.cpu.get_flag("C"))
+
+    def test_cpl_instruction_zero(self):
+        """Test CPL (0x2F) - Complement A register with A=0"""
+        self.cpu.set_register("PC", 0x100)
+        self.cpu.memory.set_value(0x100, 0x2F)
+        self.cpu.set_register("A", 0x00)  # Binary: 00000000
+        self.cpu.set_flag("N", False)
+        self.cpu.set_flag("H", False)
+        self.cpu.set_flag("Z", False)
+        self.cpu.set_flag("C", False)
+
+        self.cpu.run(max_cycles=4)
+
+        self.assertEqual(self.cpu.get_register("PC"), 0x101)
+        self.assertEqual(
+            self.cpu.get_register("A"), 0xFF
+        )  # Binary: 11111111 (complement of 0x00)
+        self.assertTrue(self.cpu.get_flag("N"))
+        self.assertTrue(self.cpu.get_flag("H"))
+        # Z and C flags should be unaffected
+        self.assertFalse(self.cpu.get_flag("Z"))
+        self.assertFalse(self.cpu.get_flag("C"))
+
 
 if __name__ == "__main__":
     unittest.main()
