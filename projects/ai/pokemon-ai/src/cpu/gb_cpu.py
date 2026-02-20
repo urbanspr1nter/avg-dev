@@ -92,7 +92,7 @@ from src.cpu.handlers.ld_r1_r2_handlers import (
     ld_a_hl,
     ld_a_a,
 )
-from src.cpu.handlers.misc_handlers import nop
+from src.cpu.handlers.misc_handlers import nop, scf
 from src.cpu.handlers.arith_handlers import (
     adc_a_b,
     adc_a_c,
@@ -317,6 +317,7 @@ class CPU:
             0x26: ld_h_n8,
             0x2E: ld_l_n8,
             0x36: ld_hl_n8,
+            0x37: scf,
             0x3E: ld_a_n8,
             # LD r1, r2 instructions (register to register transfers)
             0x40: ld_b_b,
