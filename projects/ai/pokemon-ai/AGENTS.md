@@ -279,4 +279,95 @@ These are important opcodes still needed for a functional emulator:
 
 ## Current Test Status
 
-258 tests passing as of February 20, 2026.
+271 tests passing as of March 15, 2026.
+
+## Interrupt System Implementation Plan
+
+The Game Boy interrupt system is being implemented in multiple phases:
+
+### ✅ Phase 1: Core Infrastructure (COMPLETED)
+- DI (0xF3), EI (0xFB), HALT (0x76) instruction handlers
+- RETI (0xD9) handler with proper IME flag management
+- Interrupt service routine implementation (20 cycles)
+- Basic interrupt priority system (V-Blank > LCD STAT > Timer > Serial > Joypad)
+- Interrupt checking in CPU run loop
+- 7 comprehensive interrupt tests
+
+### ✅ Phase 2: Memory-Mapped Registers (COMPLETED)
+- IF register (0xFF0F) - Interrupt Flag register
+- IE register (0xFFFF) - Interrupt Enable register
+- Memory-mapped register handlers in gb_memory.py
+- Register access methods with proper 5-bit masking
+- Stack operation fixes for register address conflicts
+- All memory-mapped register functionality working
+
+### 📋 Phase 3: EI Instruction Delay - Core Implementation
+- Add ime_pending flag to Interrupts class
+- Modify EI handler to set pending flag instead of immediate enable
+- Update CPU run loop to handle delayed IME enable
+- Basic tests for delayed interrupt enabling
+
+### 📋 Phase 4: EI Delay - Edge Cases and Validation
+- Comprehensive timing tests for EI delay
+- Edge cases with different instruction sequences
+- Validation against real Game Boy behavior
+- Performance impact analysis
+
+### 📋 Phase 5: Advanced Interrupt Scenarios
+- Nested interrupt handling
+- Interrupts during HALT with different interrupt types
+- Memory boundary edge cases (stack near 0xFF0F/0xFFFF)
+- Priority conflict resolution tests
+
+### 📋 Phase 6: Real ROM Integration Testing
+- Test with actual Game Boy ROMs that use interrupts
+- Validate interrupt-driven game mechanics
+- Cycle-accurate timing verification
+- Compatibility testing with various ROMs
+
+### 📋 Phase 7: Performance Optimization
+- Optimize interrupt checking in CPU run loop
+- Memory access optimizations for interrupt registers
+- State caching improvements
+- Benchmarking and profiling
+
+### 📋 Phase 8: Final Validation and Documentation
+- Complete edge case test suite
+- Comprehensive documentation of interrupt system
+- Final regression testing
+- Integration validation with full emulator
+
+## Interrupt System Architecture
+
+### Memory-Mapped Registers
+- **IF (Interrupt Flag) at 0xFF0F**: Indicates pending interrupts
+  - Bit 0: V-Blank interrupt
+  - Bit 1: LCD STAT interrupt
+  - Bit 2: Timer interrupt
+  - Bit 3: Serial interrupt
+  - Bit 4: Joypad interrupt
+  - Bits 5-7: Unused (always 0)
+
+- **IE (Interrupt Enable) at 0xFFFF**: Enables interrupt sources
+  - Same bit layout as IF register
+  - Only lower 5 bits are valid
+
+### Interrupt Priority
+1. V-Blank (highest priority)
+2. LCD STAT
+3. Timer
+4. Serial
+5. Joypad (lowest priority)
+
+### Interrupt Service Routine
+- Takes 20 cycles to service an interrupt
+- Disables IME during service
+- Clears specific IF bit
+- Jumps to fixed address based on interrupt type
+- RETI (0xD9) returns and re-enables interrupts
+
+### Key Implementation Details
+- Interrupts only service when IME (Interrupt Master Enable) is true
+- HALT instruction wakes up immediately if interrupts are pending
+- EI instruction has 1-instruction delay before enabling interrupts
+- All memory accesses to 0xFF0F/0xFFFF go through register handlers
