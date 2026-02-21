@@ -599,5 +599,190 @@ class TestInterrupts(unittest.TestCase):
         self.assertEqual(self.cpu.registers.PC, 0x0002)  # Executed NOP, not interrupt handler
 
 
+    # ===== Phase 5: Advanced Interrupt Scenarios =====
+
+    def test_nested_interrupt_prevented_by_ime(self):
+        """Test that IME=False during interrupt service prevents nested interrupts"""
+        # Set up V-Blank + Timer pending
+        self.memory.set_value(0xFF0F, 0x05)  # V-Blank (0x01) + Timer (0x04)
+        self.memory.set_value(0xFFFF, 0x05)  # Both enabled
+        self.cpu.interrupts.ime = True
+        self.cpu.registers.PC = 0x0000
+        self.cpu.registers.SP = 0xFFFE
+
+        # NOP at 0x0000 (never reached), NOP at V-Blank handler 0x40
+        self.memory.set_value(0x0000, 0x00)
+        self.memory.set_value(0x0040, 0x00)  # NOP at V-Blank handler
+
+        # Run — V-Blank fires (highest priority), Timer stays pending
+        self.cpu.run(max_cycles=20)  # 20 for interrupt service
+        self.assertEqual(self.cpu.registers.PC, 0x40)
+        self.assertFalse(self.cpu.interrupts.ime)  # Disabled during service
+
+        # Execute NOP at handler — Timer should NOT fire (IME=False)
+        self.cpu.run(max_cycles=24)  # 4 more for NOP
+        self.assertEqual(self.cpu.registers.PC, 0x41)  # Just advanced past NOP
+        self.assertFalse(self.cpu.interrupts.ime)  # Still disabled
+        # Timer IF bit still pending
+        self.assertEqual(self.memory.get_value(0xFF0F) & 0x04, 0x04)
+
+    def test_interrupt_chain_after_reti(self):
+        """Test V-Blank fires, RETI re-enables IME, Timer fires next"""
+        # V-Blank + Timer both pending
+        self.memory.set_value(0xFF0F, 0x05)  # V-Blank (0x01) + Timer (0x04)
+        self.memory.set_value(0xFFFF, 0x05)  # Both enabled
+        self.cpu.interrupts.ime = True
+        self.cpu.registers.PC = 0x0000
+        self.cpu.registers.SP = 0xFFFE
+
+        self.memory.set_value(0x0000, 0x00)  # NOP (return target after RETI)
+        self.memory.set_value(0x0040, 0xD9)  # RETI at V-Blank handler
+
+        # V-Blank fires: push 0x0000, jump to 0x40, 20 cycles
+        # RETI at 0x40: pop 0x0000, IME=True, 16 cycles
+        # Timer fires: push 0x0000, jump to 0x50, 20 cycles
+        self.cpu.run(max_cycles=56)  # 20 + 16 + 20
+        self.assertEqual(self.cpu.current_cycles, 56)
+        self.assertEqual(self.cpu.registers.PC, 0x50)  # Timer handler
+        self.assertFalse(self.cpu.interrupts.ime)  # Disabled during Timer service
+        # Both IF bits now cleared
+        self.assertEqual(self.memory.get_value(0xFF0F) & 0x05, 0x00)
+
+    def test_halt_wakes_on_each_interrupt_type(self):
+        """Test HALT wakes and services each of the 5 interrupt types"""
+        for interrupt_bit, handler_addr in [(0x01, 0x40), (0x02, 0x48), (0x04, 0x50), (0x08, 0x58), (0x10, 0x60)]:
+            with self.subTest(interrupt_bit=hex(interrupt_bit)):
+                self.setUp()
+
+                # No interrupt pending initially
+                self.memory.set_value(0xFF0F, 0x00)
+                self.memory.set_value(0xFFFF, interrupt_bit)
+                self.cpu.interrupts.ime = True
+                self.cpu.registers.PC = 0x0000
+
+                self.memory.set_value(0x0000, 0x76)  # HALT
+
+                # Execute HALT — enters halt state (no pending interrupt)
+                self.cpu.run(max_cycles=4)
+                self.assertTrue(self.cpu.interrupts.halted)
+
+                # Trigger interrupt externally
+                self.memory.set_value(0xFF0F, interrupt_bit)
+
+                # CPU wakes, services interrupt
+                self.cpu.run(max_cycles=24)  # wake + 20 service
+                self.assertFalse(self.cpu.interrupts.halted)
+                self.assertEqual(self.cpu.registers.PC, handler_addr)
+                self.assertEqual(self.memory.get_value(0xFF0F) & interrupt_bit, 0x00)
+
+    def test_halt_wakes_on_lcd_stat_ime_disabled(self):
+        """Test HALT with IME=0 wakes on LCD STAT but doesn't service"""
+        self.memory.set_value(0xFF0F, 0x00)
+        self.memory.set_value(0xFFFF, 0x02)  # LCD STAT enabled
+        self.cpu.interrupts.ime = False
+        self.cpu.registers.PC = 0x0000
+
+        self.memory.set_value(0x0000, 0x76)  # HALT
+        self.memory.set_value(0x0001, 0x00)  # NOP
+
+        # Execute HALT — no pending interrupt, enters halt
+        self.cpu.run(max_cycles=4)
+        self.assertTrue(self.cpu.interrupts.halted)
+
+        # Trigger LCD STAT externally
+        self.memory.set_value(0xFF0F, 0x02)
+
+        # CPU wakes, does NOT service (IME=0), executes NOP
+        self.cpu.run(max_cycles=8)  # wake + 4 NOP
+        self.assertFalse(self.cpu.interrupts.halted)
+        self.assertFalse(self.cpu.interrupts.ime)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)  # Past NOP, not handler
+        # IF bit still set (not serviced)
+        self.assertEqual(self.memory.get_value(0xFF0F) & 0x02, 0x02)
+
+    def test_interrupt_service_stack_near_hram(self):
+        """Test interrupt service with default SP doesn't corrupt IF/IE"""
+        # SP at default 0xFFFE, PC at 0x0100
+        self.cpu.registers.SP = 0xFFFE
+        self.cpu.registers.PC = 0x0100
+        self.memory.set_value(0xFF0F, 0x01)  # V-Blank pending
+        self.memory.set_value(0xFFFF, 0x01)  # V-Blank enabled
+        self.cpu.interrupts.ime = True
+
+        # Record IE before
+        ie_before = self.memory.get_value(0xFFFF)
+
+        # Service interrupt — pushes PC (0x0100) to stack at 0xFFFC/0xFFFD
+        self.cpu.run(max_cycles=20)
+        self.assertEqual(self.cpu.registers.PC, 0x40)
+
+        # Verify stack contents
+        self.assertEqual(self.cpu.registers.SP, 0xFFFC)
+        self.assertEqual(self.memory.get_value(0xFFFC), 0x00)  # Low byte of 0x0100
+        self.assertEqual(self.memory.get_value(0xFFFD), 0x01)  # High byte of 0x0100
+
+        # Verify IE register is unchanged
+        self.assertEqual(self.memory.get_value(0xFFFF), ie_before)
+        # Verify IF V-Blank bit was cleared (not corrupted by stack)
+        self.assertEqual(self.memory.get_value(0xFF0F) & 0x01, 0x00)
+
+    def test_interrupt_service_stack_wrap_corrupts_ie(self):
+        """Test that stack wrap around 0xFFFF correctly writes through IE handler"""
+        # SP at 0x0001 — push will wrap: high byte at 0x0000, low byte at 0xFFFF
+        self.cpu.registers.SP = 0x0001
+        self.cpu.registers.PC = 0x0100
+        self.memory.set_value(0xFF0F, 0x01)  # V-Blank pending
+        self.memory.set_value(0xFFFF, 0x01)  # V-Blank enabled
+        self.cpu.interrupts.ime = True
+
+        # Service interrupt — push_word(0x0100):
+        # SP=0x0000, write high byte 0x01 to 0x0000
+        # SP=0xFFFF, write low byte 0x00 to 0xFFFF (IE register!)
+        self.cpu.run(max_cycles=20)
+        self.assertEqual(self.cpu.registers.PC, 0x40)
+        self.assertEqual(self.cpu.registers.SP, 0xFFFF)
+
+        # IE register was overwritten with 0x00 (low byte of PC)
+        # This is correct hardware behavior — stack can corrupt IE
+        self.assertEqual(self.memory.get_value(0xFFFF), 0x00)
+
+    def test_multiple_pending_clears_only_serviced(self):
+        """Test that servicing one interrupt only clears its IF bit"""
+        # V-Blank + LCD STAT + Timer all pending and enabled
+        self.memory.set_value(0xFF0F, 0x07)  # bits 0,1,2
+        self.memory.set_value(0xFFFF, 0x07)
+        self.cpu.interrupts.ime = True
+        self.cpu.registers.PC = 0x0000
+        self.cpu.registers.SP = 0xFFFE
+
+        # V-Blank fires (highest priority)
+        self.cpu.run(max_cycles=20)
+        self.assertEqual(self.cpu.registers.PC, 0x40)  # V-Blank handler
+
+        # V-Blank IF cleared, LCD STAT + Timer still pending
+        if_reg = self.memory.get_value(0xFF0F)
+        self.assertEqual(if_reg & 0x01, 0x00)  # V-Blank cleared
+        self.assertEqual(if_reg & 0x02, 0x02)  # LCD STAT still set
+        self.assertEqual(if_reg & 0x04, 0x04)  # Timer still set
+
+    def test_partial_ie_mask(self):
+        """Test that only IE-enabled interrupts fire, even if others are in IF"""
+        # All 5 IF bits set, but only Timer enabled in IE
+        self.memory.set_value(0xFF0F, 0x1F)  # All pending
+        self.memory.set_value(0xFFFF, 0x04)  # Only Timer enabled
+        self.cpu.interrupts.ime = True
+        self.cpu.registers.PC = 0x0000
+        self.cpu.registers.SP = 0xFFFE
+
+        # Only Timer should fire (it's the only one enabled)
+        self.cpu.run(max_cycles=20)
+        self.assertEqual(self.cpu.registers.PC, 0x50)  # Timer handler at 0x50
+
+        # Timer IF cleared, others still set
+        if_reg = self.memory.get_value(0xFF0F)
+        self.assertEqual(if_reg & 0x04, 0x00)  # Timer cleared
+        self.assertEqual(if_reg & 0x1B, 0x1B)  # All others still set
+
+
 if __name__ == "__main__":
     unittest.main()

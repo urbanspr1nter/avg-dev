@@ -274,7 +274,7 @@ These are important opcodes still needed for a functional emulator:
 
 ## Current Test Status
 
-282 tests passing as of February 21, 2026.
+290 tests passing as of February 21, 2026.
 
 ## Interrupt System Implementation Plan
 
@@ -316,11 +316,16 @@ The Game Boy interrupt system is being implemented in multiple phases:
   HALT wake on external interrupt, HALT wake with IME=0
 - ✅ All 282 tests passing (24 interrupt tests, 1 skipped for CB-prefixed)
 
-### 📋 Phase 5: Advanced Interrupt Scenarios
-- Nested interrupt handling
-- Interrupts during HALT with different interrupt types
-- Memory boundary edge cases (stack near 0xFF0F/0xFFFF)
-- Priority conflict resolution tests
+### ✅ Phase 5: Advanced Interrupt Scenarios (COMPLETED)
+- ✅ Nested interrupt prevention (IME=False blocks second interrupt during service)
+- ✅ Interrupt chaining after RETI (V-Blank → RETI → Timer fires automatically)
+- ✅ HALT wakes on each of 5 interrupt types (parameterized test)
+- ✅ HALT wake with IME=0 (wakes but doesn't service, type-agnostic)
+- ✅ Stack boundary: default SP=0xFFFE interrupt push doesn't corrupt IF/IE
+- ✅ Stack wrap: SP=0x0001 push wraps to 0xFFFF, correctly corrupts IE (faithful to hardware)
+- ✅ Multiple pending: only serviced interrupt's IF bit cleared, others preserved
+- ✅ Partial IE mask: only IE-enabled interrupts fire, disabled ones ignored
+- ✅ 8 new tests, all 290 tests passing (32 interrupt tests, 1 skipped for CB-prefixed)
 
 ### 📋 Phase 6: Real ROM Integration Testing
 - Test with actual Game Boy ROMs that use interrupts
