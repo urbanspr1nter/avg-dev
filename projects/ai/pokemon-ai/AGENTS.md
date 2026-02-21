@@ -223,8 +223,17 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 
 ### Load Instructions
 - **LD r, n8**: Various (8-bit immediate loads)
+- **LD rr, n16**: 0x01, 0x11, 0x21, 0x31 (16-bit immediate loads: BC, DE, HL, SP)
 - **LD (HL), n8**: 0x36
 - **LD r1, r2**: 0x40-0x7F (56 register-to-register loads)
+- **LD A, (BC)**: 0x0A, **LD A, (DE)**: 0x1A (register-indirect loads)
+- **LD (BC), A**: 0x02, **LD (DE), A**: 0x12 (register-indirect stores)
+- **LD (HL+), A**: 0x22, **LD A, (HL+)**: 0x2A (auto-increment)
+- **LD (HL-), A**: 0x32, **LD A, (HL-)**: 0x3A (auto-decrement)
+- **LD (a16), A**: 0xEA, **LD A, (a16)**: 0xFA (absolute address)
+- **LD (a16), SP**: 0x08 (store SP to absolute address)
+- **LD SP, HL**: 0xF9
+- **LD HL, SP+e8**: 0xF8 (SP + signed offset into HL, sets H/C flags)
 - **PUSH rr**: 0xC5, 0xD5, 0xE5, 0xF5 (4 instructions)
 - **POP rr**: 0xC1, 0xD1, 0xE1, 0xF1 (4 instructions)
 - **LDH (n), A**: 0xE0
@@ -265,16 +274,15 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 
 These are important opcodes still needed for a functional emulator:
 - **DAA** (0x27): Decimal Adjust Accumulator
-- **LD HL, n16** (0x21) and other 16-bit loads (0x01, 0x11, 0x31)
+- **STOP** (0x10): Stop CPU and LCD until button press
 - **INC/DEC** for H, L, A, (HL), and 16-bit register pairs
-- **ADC** instructions
+- **ADC A, n8** (0xCE): Add with carry immediate
+- **ADD SP, e8** (0xE8): Add signed offset to SP
 - **CB-prefixed** instructions (bit operations, shifts, rotates on all registers)
-- **LD (a16), A** / **LD A, (a16)** and other memory load variants
-- **LD (HL+), A** / **LD (HL-), A** and reverse variants
 
 ## Current Test Status
 
-290 tests passing as of February 21, 2026.
+306 tests passing as of February 21, 2026.
 
 ## Interrupt System Implementation Plan
 
