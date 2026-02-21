@@ -274,7 +274,7 @@ These are important opcodes still needed for a functional emulator:
 
 ## Current Test Status
 
-271 tests passing as of March 15, 2026.
+282 tests passing as of February 21, 2026.
 
 ## Interrupt System Implementation Plan
 
@@ -304,14 +304,17 @@ The Game Boy interrupt system is being implemented in multiple phases:
 - ✅ 3 comprehensive tests added for EI delay functionality
 - ✅ All 10 interrupt tests passing
 
-### 📋 Phase 4: EI Delay - Edge Cases and Validation
-- Comprehensive timing tests for EI delay
-- Edge cases with different instruction sequences
-- Validation against real Game Boy behavior
-- Performance impact analysis
-- Test EI delay with various instruction types (CB-prefixed, multi-byte)
-- Test EI delay with interrupts triggered during the delay
-- Test EI delay with HALT instruction interactions
+### ✅ Phase 4: EI Delay - Edge Cases and HALT Bug Fix (COMPLETED)
+- ✅ Fixed DI to cancel pending EI (ime_pending cleared)
+- ✅ Fixed run loop post-instruction EI delay check (respects DI cancellation)
+- ✅ Implemented HALT bug: IME=0 + pending interrupt → next byte read twice
+- ✅ Added halt_bug flag to Interrupts class (one-shot, consumed by run loop)
+- ✅ Refactored HALT handler for all 4 cases (IME=1/0 x pending/not-pending)
+- ✅ Added halted idle loop to run() — CPU consumes 4 cycles/iteration while halted
+- ✅ Removed halted guard from check_interrupts() (now managed by run loop)
+- ✅ 6 new edge-case tests: EI+DI cancel, DI+EI delay, double EI, HALT bug,
+  HALT wake on external interrupt, HALT wake with IME=0
+- ✅ All 282 tests passing (24 interrupt tests, 1 skipped for CB-prefixed)
 
 ### 📋 Phase 5: Advanced Interrupt Scenarios
 - Nested interrupt handling
@@ -370,4 +373,10 @@ The Game Boy interrupt system is being implemented in multiple phases:
 - Interrupts only service when IME (Interrupt Master Enable) is true
 - HALT instruction wakes up immediately if interrupts are pending
 - EI instruction has 1-instruction delay before enabling interrupts
+- DI cancels any pending EI (clears both ime and ime_pending)
+- HALT bug: when HALT executes with IME=0 and (IF & IE) != 0, the CPU does NOT
+  halt and does NOT service the interrupt — instead the next instruction byte is
+  read twice (halt_bug flag causes run loop to undo one PC increment after fetch)
+- When halted with no pending interrupt, CPU idles at 4 cycles/iteration until
+  any interrupt becomes pending (IF & IE != 0), then wakes regardless of IME
 - All memory accesses to 0xFF0F/0xFFFF go through register handlers

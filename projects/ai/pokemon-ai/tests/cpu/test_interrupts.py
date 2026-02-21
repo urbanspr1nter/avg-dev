@@ -440,5 +440,164 @@ class TestInterrupts(unittest.TestCase):
         self.assertEqual(self.cpu.get_register("A"), 0x03)  # A should be 3
 
 
+    def test_ei_then_di_cancels_pending(self):
+        """Test EI followed by DI cancels the pending interrupt enable"""
+        # Set up V-Blank interrupt
+        self.memory.set_value(0xFF0F, 0x01)  # V-Blank pending
+        self.memory.set_value(0xFFFF, 0x01)  # V-Blank enabled
+        self.cpu.interrupts.ime = False
+        self.cpu.registers.PC = 0x0000
+
+        # Program: EI, DI, NOP
+        self.memory.set_value(0x0000, 0xFB)  # EI
+        self.memory.set_value(0x0001, 0xF3)  # DI
+        self.memory.set_value(0x0002, 0x00)  # NOP
+
+        # Run all three instructions
+        self.cpu.run(max_cycles=12)  # 4 + 4 + 4
+        self.assertEqual(self.cpu.current_cycles, 12)
+        self.assertFalse(self.cpu.interrupts.ime)  # DI should have cancelled
+        self.assertFalse(self.cpu.interrupts.ime_pending)  # Pending should be cleared
+        self.assertEqual(self.cpu.registers.PC, 0x0003)  # No interrupt, normal flow
+
+    def test_di_then_ei_still_has_delay(self):
+        """Test DI followed by EI still has 1-instruction delay"""
+        # Set up V-Blank interrupt, start with IME disabled
+        self.memory.set_value(0xFF0F, 0x01)  # V-Blank pending
+        self.memory.set_value(0xFFFF, 0x01)  # V-Blank enabled
+        self.cpu.interrupts.ime = False
+        self.cpu.registers.PC = 0x0000
+
+        # Program: DI, EI, NOP
+        self.memory.set_value(0x0000, 0xF3)  # DI
+        self.memory.set_value(0x0001, 0xFB)  # EI
+        self.memory.set_value(0x0002, 0x00)  # NOP (EI delay resolves after this)
+
+        # Run DI — redundant since IME already False
+        self.cpu.run(max_cycles=4)
+        self.assertFalse(self.cpu.interrupts.ime)
+        self.assertEqual(self.cpu.registers.PC, 0x0001)
+
+        # Run EI — sets pending, doesn't enable yet
+        self.cpu.run(max_cycles=8)
+        self.assertFalse(self.cpu.interrupts.ime)
+        self.assertTrue(self.cpu.interrupts.ime_pending)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
+
+        # Run NOP — enables IME, then interrupt fires
+        self.cpu.run(max_cycles=28)  # 4 (NOP) + 20 (interrupt)
+        self.assertFalse(self.cpu.interrupts.ime)  # Disabled during service
+        self.assertEqual(self.cpu.registers.PC, 0x40)  # V-Blank handler
+
+    def test_double_ei(self):
+        """Test EI, EI still only has 1-instruction delay"""
+        # Set up V-Blank interrupt
+        self.memory.set_value(0xFF0F, 0x01)  # V-Blank pending
+        self.memory.set_value(0xFFFF, 0x01)  # V-Blank enabled
+        self.cpu.interrupts.ime = False
+        self.cpu.registers.PC = 0x0000
+
+        # Program: EI, EI, NOP
+        self.memory.set_value(0x0000, 0xFB)  # EI
+        self.memory.set_value(0x0001, 0xFB)  # EI (second one)
+        self.memory.set_value(0x0002, 0x00)  # NOP
+
+        # Run first EI
+        self.cpu.run(max_cycles=4)
+        self.assertFalse(self.cpu.interrupts.ime)
+        self.assertTrue(self.cpu.interrupts.ime_pending)
+
+        # Run second EI — first EI's delay resolves, enabling IME
+        # Second EI re-sets pending, but post-instruction logic consumed it
+        self.cpu.run(max_cycles=8)
+        self.assertTrue(self.cpu.interrupts.ime)  # Enabled from first EI's delay
+
+        # Interrupt fires immediately since IME is now true
+        self.cpu.run(max_cycles=28)  # 20 (interrupt service)
+        self.assertEqual(self.cpu.registers.PC, 0x40)  # V-Blank handler
+
+    def test_halt_bug_ime_disabled_pending_interrupt(self):
+        """Test HALT bug: IME=0 with pending interrupt, next byte read twice"""
+        # Set up V-Blank interrupt but keep IME disabled
+        self.memory.set_value(0xFF0F, 0x01)  # V-Blank pending
+        self.memory.set_value(0xFFFF, 0x01)  # V-Blank enabled
+        self.cpu.interrupts.ime = False
+        self.cpu.registers.PC = 0x0000
+        self.cpu.set_register("A", 0x00)
+
+        # Program: HALT, INC A, INC A
+        self.memory.set_value(0x0000, 0x76)  # HALT
+        self.memory.set_value(0x0001, 0x3C)  # INC A
+        self.memory.set_value(0x0002, 0x3C)  # INC A
+
+        # Run HALT — should trigger HALT bug (not actually halt)
+        self.cpu.run(max_cycles=4)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        self.assertFalse(self.cpu.interrupts.halted)  # Should NOT be halted
+        self.assertFalse(self.cpu.interrupts.ime)  # IME stays disabled
+
+        # Run next instructions — first INC A is read twice due to HALT bug
+        # PC doesn't advance after the first fetch, so INC A at 0x0001 executes,
+        # then INC A at 0x0001 executes again, then INC A at 0x0002
+        self.cpu.run(max_cycles=16)  # 3 x INC A = 12 cycles, current_cycles reaches 16
+        self.assertEqual(self.cpu.current_cycles, 16)  # 4 (HALT) + 12 (3 INC A)
+        self.assertEqual(self.cpu.get_register("A"), 0x03)  # Three increments
+
+    def test_halt_stays_halted_until_interrupt(self):
+        """Test HALT with no interrupt idles, then wakes when interrupt arrives"""
+        # No interrupts pending
+        self.memory.set_value(0xFF0F, 0x00)
+        self.memory.set_value(0xFFFF, 0x01)  # V-Blank enabled
+        self.cpu.interrupts.ime = True
+        self.cpu.registers.PC = 0x0000
+
+        # Program: HALT, NOP
+        self.memory.set_value(0x0000, 0x76)  # HALT
+        self.memory.set_value(0x0001, 0x00)  # NOP (reached after wake)
+
+        # Run HALT — enters halt state, no interrupt to wake
+        self.cpu.run(max_cycles=4)
+        self.assertEqual(self.cpu.current_cycles, 4)
+        self.assertTrue(self.cpu.interrupts.halted)
+
+        # Run more cycles — CPU is halted, should idle (consume cycles but not execute)
+        self.cpu.run(max_cycles=20)  # 4 idle cycles each iteration: 4→8→12→16→20
+        self.assertTrue(self.cpu.interrupts.halted)  # Still halted
+        self.assertEqual(self.cpu.registers.PC, 0x0001)  # PC unchanged
+
+        # Now trigger V-Blank interrupt externally
+        self.memory.set_value(0xFF0F, 0x01)
+
+        # Run again — CPU wakes, services interrupt
+        self.cpu.run(max_cycles=40)  # wake + 20 (interrupt service)
+        self.assertFalse(self.cpu.interrupts.halted)  # Woke up
+        self.assertEqual(self.cpu.registers.PC, 0x40)  # V-Blank handler
+
+    def test_halt_wake_ime_disabled(self):
+        """Test HALT wakes on interrupt even with IME=0, but doesn't service"""
+        # No interrupts pending initially
+        self.memory.set_value(0xFF0F, 0x00)
+        self.memory.set_value(0xFFFF, 0x01)  # V-Blank enabled
+        self.cpu.interrupts.ime = False
+        self.cpu.registers.PC = 0x0000
+
+        # Program: HALT, NOP
+        self.memory.set_value(0x0000, 0x76)  # HALT
+        self.memory.set_value(0x0001, 0x00)  # NOP
+
+        # Run HALT — no pending interrupt AND IME=0, so enters halt
+        self.cpu.run(max_cycles=4)
+        self.assertTrue(self.cpu.interrupts.halted)
+
+        # Trigger V-Blank interrupt externally
+        self.memory.set_value(0xFF0F, 0x01)
+
+        # Run — CPU wakes but does NOT service (IME=0), executes NOP
+        self.cpu.run(max_cycles=8)  # wake + 4 (NOP)
+        self.assertFalse(self.cpu.interrupts.halted)  # Woke up
+        self.assertFalse(self.cpu.interrupts.ime)  # Still disabled
+        self.assertEqual(self.cpu.registers.PC, 0x0002)  # Executed NOP, not interrupt handler
+
+
 if __name__ == "__main__":
     unittest.main()

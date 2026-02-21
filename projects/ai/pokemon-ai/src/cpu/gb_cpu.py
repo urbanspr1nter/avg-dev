@@ -254,6 +254,7 @@ class Interrupts:
         self.enabled = False  # Legacy flag, kept for compatibility
         self.ime_pending = False  # EI instruction delay flag
         self.ime_handled_by_instruction = False  # Flag to track if current instruction already handled IME enable
+        self.halt_bug = False  # HALT bug: next instruction byte read twice when HALT with IME=0 and pending interrupt
         self._cpu = cpu  # Reference to CPU for memory access
 
     def check_interrupts(self, cpu):
@@ -262,8 +263,8 @@ class Interrupts:
         Returns:
             int: Number of cycles used (0 if no interrupt serviced)
         """
-        if not self.ime or self.halted:
-            return 0  # No cycles used if interrupts disabled or CPU halted
+        if not self.ime:
+            return 0  # No cycles used if interrupts disabled
         
         if_reg = cpu.memory.get_value(0xFF0F)  # Interrupt Flag register
         ie_reg = cpu.memory.get_value(0xFFFF)  # Interrupt Enable register
@@ -889,6 +890,20 @@ class CPU:
             if max_cycles >= 0 and self.current_cycles >= max_cycles:
                 break
 
+            # Handle HALT state: idle until an interrupt wakes CPU
+            if self.interrupts.halted:
+                if_reg = self.memory.get_value(0xFF0F)
+                ie_reg = self.memory.get_value(0xFFFF)
+                if if_reg & ie_reg:
+                    # Any pending interrupt wakes CPU (regardless of IME)
+                    self.interrupts.halted = False
+                    # Fall through to normal interrupt check / instruction fetch
+                else:
+                    # No interrupt pending — consume one machine cycle and loop
+                    self.current_cycles += 4
+                    cycles_consumed += 4
+                    continue
+
             # Check if we need to enable IME after the previous instruction
             # This implements the EI delay: IME is enabled after the instruction following EI
             ime_was_pending = self.interrupts.ime_pending
@@ -907,6 +922,11 @@ class CPU:
 
             # Fetch the opcode
             opcode = self.fetch()
+
+            # HALT bug: undo PC increment so the byte after HALT is read twice
+            if self.interrupts.halt_bug:
+                self.registers.PC = (self.registers.PC - 1) & 0xFFFF
+                self.interrupts.halt_bug = False
 
             # Look up the opcode in our database
             opcode_info = None
@@ -995,9 +1015,11 @@ class CPU:
 
             # Handle delayed IME enable from EI instruction
             # This happens AFTER the instruction executes for correct EI delay timing
-            # Only enable if the flag was set BEFORE this instruction started
-            # AND the instruction didn't already handle IME enable itself (e.g., HALT)
-            if ime_was_pending and not self.interrupts.ime_handled_by_instruction:
+            # Only enable if:
+            #   - ime_pending was set BEFORE this instruction started
+            #   - ime_pending is STILL set (DI would have cleared it)
+            #   - the instruction didn't already handle IME itself (e.g., HALT)
+            if ime_was_pending and self.interrupts.ime_pending and not self.interrupts.ime_handled_by_instruction:
                 self.interrupts.ime = True
                 self.interrupts.ime_pending = False
 
