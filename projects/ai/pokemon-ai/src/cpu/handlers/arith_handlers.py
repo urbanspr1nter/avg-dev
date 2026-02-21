@@ -816,6 +816,40 @@ def sbc_a_n8(cpu, opcode_info) -> int:
     return opcode_info["cycles"][0]
 
 
+def adc_a_n8(cpu, opcode_info) -> int:
+    """ADC A, n8 - Add immediate byte to A with carry"""
+    a_value = cpu.get_register("A")
+    n8_value = cpu.operand_values[1]["value"]
+    carry_flag = cpu.get_flag("C")
+
+    result = a_value + n8_value + (1 if carry_flag else 0)
+
+    cpu.set_flag("Z", (result & 0xFF) == 0)
+    cpu.set_flag("N", False)
+    cpu.set_flag(
+        "H", ((a_value & 0xF) + (n8_value & 0xF) + (1 if carry_flag else 0)) > 0xF
+    )
+    cpu.set_flag("C", result > 0xFF)
+
+    cpu.set_register("A", result & 0xFF)
+
+    return opcode_info["cycles"][0]
+
+
+def add_sp_e8(cpu, opcode_info) -> int:
+    """ADD SP, e8 - Add signed 8-bit offset to SP"""
+    e8_unsigned = cpu.operand_values[1]["value"]
+    e8_signed = e8_unsigned if e8_unsigned <= 127 else e8_unsigned - 256
+    sp = cpu.registers.SP
+    result = (sp + e8_signed) & 0xFFFF
+    cpu.registers.SP = result
+    cpu.set_flag('Z', False)
+    cpu.set_flag('N', False)
+    cpu.set_flag('H', ((sp & 0xF) + (e8_unsigned & 0xF)) > 0xF)
+    cpu.set_flag('C', ((sp & 0xFF) + (e8_unsigned & 0xFF)) > 0xFF)
+    return opcode_info["cycles"][0]
+
+
 def and_a_b(cpu, opcode_info) -> int:
     """AND A, B - Bitwise AND between A and B"""
     a_value = cpu.get_register("A")

@@ -206,8 +206,11 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 
 ### Arithmetic Operations (ADD, SUB, SBC)
 - **ADD A, r**: 0x80-0x87, 0xC6 (9 instructions)
+- **ADC A, r**: 0x88-0x8F, 0xCE (9 instructions)
 - **SUB A, r**: 0x90-0x97, 0xD6 (9 instructions)
 - **SBC A, r**: 0x98-0x9F, 0xDE (9 instructions)
+- **ADD SP, e8**: 0xE8
+- **ADD HL, rr**: 0x09, 0x19, 0x29, 0x39
 
 ### Bitwise Operations (AND, OR, XOR, CP)
 - **AND A, r**: 0xA0-0xA7, 0xE6 (9 instructions)
@@ -255,7 +258,11 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 - **RST**: 0xC7, 0xCF, 0xD7, 0xDF, 0xE7, 0xEF, 0xF7, 0xFF (8 restart vectors)
 
 ### Increment/Decrement
-- **INC r**: 0x04, 0x0C, 0x14, 0x1C (INC B, C, D, E)
+- **INC r8**: 0x04, 0x0C, 0x14, 0x1C, 0x24, 0x2C, 0x3C (INC B, C, D, E, H, L, A)
+- **DEC r8**: 0x05, 0x0D, 0x15, 0x1D, 0x25, 0x2D, 0x3D (DEC B, C, D, E, H, L, A)
+- **INC rr**: 0x03, 0x13, 0x23, 0x33 (INC BC, DE, HL, SP)
+- **DEC rr**: 0x0B, 0x1B, 0x2B, 0x3B (DEC BC, DE, HL, SP)
+- **INC (HL)**: 0x34, **DEC (HL)**: 0x35
 
 ### Interrupt Instructions
 - **DI**: 0xF3 (Disable Interrupts, immediate)
@@ -267,22 +274,19 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 - **SCF**: 0x37 (Set Carry Flag)
 - **CCF**: 0x3F (Complement Carry Flag)
 - **CPL**: 0x2F (Complement A register)
+- **DAA**: 0x27 (Decimal Adjust Accumulator)
+- **STOP**: 0x10
 
-### Total Implemented: ~208 opcodes
+### Total Implemented: ~245 unprefixed opcodes (all valid unprefixed opcodes complete)
 
 ## Not Yet Implemented (Key Missing Opcodes)
 
 These are important opcodes still needed for a functional emulator:
-- **DAA** (0x27): Decimal Adjust Accumulator
-- **STOP** (0x10): Stop CPU and LCD until button press
-- **INC/DEC** for H, L, A, (HL), and 16-bit register pairs
-- **ADC A, n8** (0xCE): Add with carry immediate
-- **ADD SP, e8** (0xE8): Add signed offset to SP
 - **CB-prefixed** instructions (bit operations, shifts, rotates on all registers)
 
 ## Current Test Status
 
-306 tests passing as of February 21, 2026.
+328 tests passing as of February 21, 2026.
 
 ## Interrupt System Implementation Plan
 

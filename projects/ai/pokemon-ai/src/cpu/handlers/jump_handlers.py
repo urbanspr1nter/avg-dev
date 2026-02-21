@@ -110,6 +110,42 @@ def jr_c_n(cpu, opcode_info) -> int:
     return opcode_info["cycles"][1]  # Jump not taken: 8 cycles
 
 
+def jp_nz_nn(cpu, opcode_info) -> int:
+    """JP NZ, a16 - Jump to address if Z flag not set"""
+    addr = cpu.operand_values[0]["value"]
+    if not cpu.get_flag("Z"):
+        cpu.registers.PC = addr
+        return opcode_info["cycles"][0]
+    return opcode_info["cycles"][1]
+
+
+def jp_z_nn(cpu, opcode_info) -> int:
+    """JP Z, a16 - Jump to address if Z flag set"""
+    addr = cpu.operand_values[0]["value"]
+    if cpu.get_flag("Z"):
+        cpu.registers.PC = addr
+        return opcode_info["cycles"][0]
+    return opcode_info["cycles"][1]
+
+
+def jp_nc_nn(cpu, opcode_info) -> int:
+    """JP NC, a16 - Jump to address if C flag not set"""
+    addr = cpu.operand_values[0]["value"]
+    if not cpu.get_flag("C"):
+        cpu.registers.PC = addr
+        return opcode_info["cycles"][0]
+    return opcode_info["cycles"][1]
+
+
+def jp_c_nn(cpu, opcode_info) -> int:
+    """JP C, a16 - Jump to address if C flag set"""
+    addr = cpu.operand_values[0]["value"]
+    if cpu.get_flag("C"):
+        cpu.registers.PC = addr
+        return opcode_info["cycles"][0]
+    return opcode_info["cycles"][1]
+
+
 def call_nn(cpu, opcode_info) -> int:
     """CALL nn - Call subroutine at address"""
     # Get the 16-bit address from operand_values (already combined)

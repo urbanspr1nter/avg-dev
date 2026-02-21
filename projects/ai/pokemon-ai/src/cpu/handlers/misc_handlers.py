@@ -31,6 +31,35 @@ def ccf(cpu, opcode_info):
     return opcode_info["cycles"][0]
 
 
+def daa(cpu, opcode_info):
+    """DAA - Decimal Adjust Accumulator for BCD arithmetic"""
+    a = cpu.get_register("A")
+    n_flag = cpu.get_flag("N")
+    c_flag = cpu.get_flag("C")
+    h_flag = cpu.get_flag("H")
+
+    if not n_flag:
+        # After addition
+        if c_flag or a > 0x99:
+            a += 0x60
+            c_flag = True
+        if h_flag or (a & 0x0F) > 0x09:
+            a += 0x06
+    else:
+        # After subtraction
+        if c_flag:
+            a -= 0x60
+        if h_flag:
+            a -= 0x06
+
+    a &= 0xFF
+    cpu.set_register("A", a)
+    cpu.set_flag("Z", a == 0)
+    cpu.set_flag("H", False)
+    cpu.set_flag("C", c_flag)
+    return opcode_info["cycles"][0]
+
+
 def cpl(cpu, opcode_info):
     """CPL - Complement A register"""
     # Get current A value

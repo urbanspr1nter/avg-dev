@@ -106,7 +106,7 @@ from src.cpu.handlers.ld_r1_r2_handlers import (
     ld_a_hl,
     ld_a_a,
 )
-from src.cpu.handlers.misc_handlers import nop, scf, ccf, cpl
+from src.cpu.handlers.misc_handlers import nop, scf, ccf, cpl, daa
 from src.cpu.handlers.interrupt_handlers import di, ei, halt
 from src.cpu.handlers.arith_handlers import (
     adc_a_b,
@@ -148,6 +148,8 @@ from src.cpu.handlers.arith_handlers import (
     sbc_a_a,
     sbc_a_hl,
     sbc_a_n8,
+    adc_a_n8,
+    add_sp_e8,
 )
 from src.cpu.handlers.bitwise_handlers import (
     and_a_b,
@@ -231,6 +233,10 @@ from src.cpu.handlers.stack_handlers import (
 )
 from src.cpu.handlers.jump_handlers import (
     jp_nn,
+    jp_nz_nn,
+    jp_z_nn,
+    jp_nc_nn,
+    jp_c_nn,
     jp_hl,
     jr_n,
     jr_nz_n,
@@ -589,8 +595,17 @@ class CPU:
             0xFA: ld_a_a16,
             0xF8: ld_hl_sp_e8,
             0xF9: ld_sp_hl,
+            # Arithmetic with immediate
+            0xCE: adc_a_n8,
+            0xE8: add_sp_e8,
+            # Miscellaneous
+            0x27: daa,
             # Jump instructions
             0xC3: jp_nn,
+            0xC2: jp_nz_nn,
+            0xCA: jp_z_nn,
+            0xD2: jp_nc_nn,
+            0xDA: jp_c_nn,
             0x18: jr_n,
             0x20: jr_nz_n,
             0x28: jr_z_n,
