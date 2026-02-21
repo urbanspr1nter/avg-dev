@@ -248,28 +248,23 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 ### Increment/Decrement
 - **INC r**: 0x04, 0x0C, 0x14, 0x1C (INC B, C, D, E)
 
+### Interrupt Instructions
+- **DI**: 0xF3 (Disable Interrupts, immediate)
+- **EI**: 0xFB (Enable Interrupts with 1-instruction delay)
+- **HALT**: 0x76 (Halt CPU until interrupt)
+
 ### Miscellaneous
 - **NOP**: 0x00
 - **SCF**: 0x37 (Set Carry Flag)
 - **CCF**: 0x3F (Complement Carry Flag)
 - **CPL**: 0x2F (Complement A register)
 
-### Total Implemented: ~207 opcodes
+### Total Implemented: ~208 opcodes
 
 ## Not Yet Implemented (Key Missing Opcodes)
 
 These are important opcodes still needed for a functional emulator:
 - **DAA** (0x27): Decimal Adjust Accumulator
-- **HALT** (0x76): Halt CPU until interrupt
-- **DI** (0xF3): Disable Interrupts
-- **EI** (0xFB): Enable Interrupts
-- **LD HL, n16** (0x21) and other 16-bit loads (0x01, 0x11, 0x31)
-- **HALT** (0x76): Halt CPU until interrupt
-- **DI** (0xF3): Disable Interrupts
-- **EI** (0xFB): Enable Interrupts
-- **HALT** (0x76): Halt CPU until interrupt
-- **DI** (0xF3): Disable Interrupts
-- **EI** (0xFB): Enable Interrupts
 - **LD HL, n16** (0x21) and other 16-bit loads (0x01, 0x11, 0x31)
 - **INC/DEC** for H, L, A, (HL), and 16-bit register pairs
 - **ADC** instructions
@@ -301,17 +296,22 @@ The Game Boy interrupt system is being implemented in multiple phases:
 - Stack operation fixes for register address conflicts
 - All memory-mapped register functionality working
 
-### 📋 Phase 3: EI Instruction Delay - Core Implementation
-- Add ime_pending flag to Interrupts class
-- Modify EI handler to set pending flag instead of immediate enable
-- Update CPU run loop to handle delayed IME enable
-- Basic tests for delayed interrupt enabling
+### ✅ Phase 3: EI Instruction Delay - Core Implementation (COMPLETED)
+- ✅ Add ime_pending flag to Interrupts class
+- ✅ Modify EI handler to set pending flag instead of immediate enable
+- ✅ Update CPU run loop to handle delayed IME enable
+- ✅ Basic tests for delayed interrupt enabling
+- ✅ 3 comprehensive tests added for EI delay functionality
+- ✅ All 10 interrupt tests passing
 
 ### 📋 Phase 4: EI Delay - Edge Cases and Validation
 - Comprehensive timing tests for EI delay
 - Edge cases with different instruction sequences
 - Validation against real Game Boy behavior
 - Performance impact analysis
+- Test EI delay with various instruction types (CB-prefixed, multi-byte)
+- Test EI delay with interrupts triggered during the delay
+- Test EI delay with HALT instruction interactions
 
 ### 📋 Phase 5: Advanced Interrupt Scenarios
 - Nested interrupt handling

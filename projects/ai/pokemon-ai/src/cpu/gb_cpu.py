@@ -252,6 +252,8 @@ class Interrupts:
         self.ime = False  # Interrupt Master Enable flag
         self.halted = False  # HALT state flag
         self.enabled = False  # Legacy flag, kept for compatibility
+        self.ime_pending = False  # EI instruction delay flag
+        self.ime_handled_by_instruction = False  # Flag to track if current instruction already handled IME enable
         self._cpu = cpu  # Reference to CPU for memory access
 
     def check_interrupts(self, cpu):
@@ -882,15 +884,24 @@ class CPU:
         return opcode
 
     def run(self, max_cycles=-1):
+        cycles_consumed = 0
         while True:
             if max_cycles >= 0 and self.current_cycles >= max_cycles:
                 break
 
-            # Check for interrupts before executing next instruction
-            interrupt_cycles = self.interrupts.check_interrupts(self)
-            if interrupt_cycles > 0:
-                self.current_cycles += interrupt_cycles
-                continue  # Skip normal instruction fetch after interrupt
+            # Check if we need to enable IME after the previous instruction
+            # This implements the EI delay: IME is enabled after the instruction following EI
+            ime_was_pending = self.interrupts.ime_pending
+            # Reset flag that tracks if IME was already handled by this instruction
+            self.interrupts.ime_handled_by_instruction = False
+
+            # Check for interrupts if IME is already enabled (not during EI delay)
+            if self.interrupts.ime:
+                interrupt_cycles = self.interrupts.check_interrupts(self)
+                if interrupt_cycles > 0:
+                    self.current_cycles += interrupt_cycles
+                    cycles_consumed += interrupt_cycles
+                    continue  # Skip normal instruction fetch after interrupt
 
             self.operand_values = []
 
@@ -980,3 +991,15 @@ class CPU:
 
             cycles_used = handler(self, opcode_info)
             self.current_cycles += cycles_used
+            cycles_consumed += cycles_used
+
+            # Handle delayed IME enable from EI instruction
+            # This happens AFTER the instruction executes for correct EI delay timing
+            # Only enable if the flag was set BEFORE this instruction started
+            # AND the instruction didn't already handle IME enable itself (e.g., HALT)
+            if ime_was_pending and not self.interrupts.ime_handled_by_instruction:
+                self.interrupts.ime = True
+                self.interrupts.ime_pending = False
+
+        # End of while loop
+        return cycles_consumed
