@@ -239,7 +239,6 @@ class TestInterrupts(unittest.TestCase):
         self.assertEqual(self.cpu.current_cycles, 40)  # 4 + 16 + 20
         self.assertEqual(self.cpu.registers.PC, 0x40)  # V-Blank handler
 
-    @unittest.skip("CB-prefixed instructions not yet implemented")
     def test_ei_delay_with_cb_prefixed_instruction(self):
         """Test EI delay with CB-prefixed instruction"""
         # Set up V-Blank interrupt
@@ -269,8 +268,8 @@ class TestInterrupts(unittest.TestCase):
         self.assertEqual(self.cpu.get_register("A"), 0x55)  # SWAP A of 0x55 = 0x55
 
         # Now interrupt should be serviced on next instruction
-        self.cpu.run(max_cycles=24)  # 20 for interrupt service
-        self.assertEqual(self.cpu.current_cycles, 24)  # 4 + 8 + 20
+        self.cpu.run(max_cycles=32)  # cumulative: 4 + 8 + 20 = 32
+        self.assertEqual(self.cpu.current_cycles, 32)  # 4 (EI) + 8 (SWAP) + 20 (interrupt)
         self.assertEqual(self.cpu.registers.PC, 0x40)  # V-Blank handler
 
     def test_ei_delay_interrupt_during_delay(self):
