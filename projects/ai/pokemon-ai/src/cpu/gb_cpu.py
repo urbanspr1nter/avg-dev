@@ -231,6 +231,7 @@ from src.cpu.handlers.stack_handlers import (
     pop_de,
     pop_hl,
 )
+from src.cpu.handlers.cb_handlers import build_cb_dispatch
 from src.cpu.handlers.jump_handlers import (
     jp_nn,
     jp_nz_nn,
@@ -635,6 +636,9 @@ class CPU:
             0xFF: rst_38h,
         }
 
+        # CB-prefixed opcode dispatch table (256 entries)
+        self.cb_opcode_handlers = build_cb_dispatch()
+
     def get_register(self, code):
         """Return the value of a register or its high/low byte."""
         if code == "AF":
@@ -974,9 +978,11 @@ class CPU:
 
             # Look up the opcode in our database
             opcode_info = None
+            is_cb_prefix = False
 
             # Check if it's a prefixed opcode (0xCB)
             if opcode == 0xCB:
+                is_cb_prefix = True
                 # Fetch the second byte for prefixed instructions
                 opcode = self.fetch_byte(self.registers.PC)
                 self.registers.PC = (self.registers.PC + 1) & 0xFFFF
@@ -1047,7 +1053,10 @@ class CPU:
                         )
 
             # Dispatch to the handler and accumulate cycles
-            handler = self.opcode_handlers.get(opcode)
+            if is_cb_prefix:
+                handler = self.cb_opcode_handlers.get(opcode)
+            else:
+                handler = self.opcode_handlers.get(opcode)
             if handler is None:
                 raise NotImplementedError(
                     f"Handler for opcode {opcode:#04x} not implemented"
