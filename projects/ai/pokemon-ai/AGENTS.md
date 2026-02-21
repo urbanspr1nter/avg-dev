@@ -22,20 +22,21 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - The `run()` method is the core execution loop — see "Critical Implementation Notes" below
 
 - `src/cpu/handlers/`: Handler functions organized by instruction type
-  - `arith_handlers.py`: ADD, SUB, SBC instructions
+  - `arith_handlers.py`: ADD, ADC, SUB, SBC, ADD SP instructions
   - `bitwise_handlers.py`: AND, OR, XOR, CP instructions
-  - `inc_dec_handlers.py`: INC instructions
-  - `jump_handlers.py`: JP, JR, CALL, RET, RETI, RST instructions
-  - `ld_handlers.py`: LD (load) immediate instructions
+  - `inc_dec_handlers.py`: INC, DEC (8-bit, 16-bit, and (HL) indirect)
+  - `interrupt_handlers.py`: DI, EI, HALT
+  - `jump_handlers.py`: JP, JP cc, JR, CALL, RET, RETI, RST instructions
+  - `ld_handlers.py`: LD (load) immediate/indirect/absolute instructions
   - `ld_r1_r2_handlers.py`: LD r1, r2 register-to-register loads (0x40-0x7F)
   - `ldh_handlers.py`: LDH high-memory I/O instructions
-  - `misc_handlers.py`: NOP and other miscellaneous instructions
-  - `rotate_handlers.py`: RLC, RRC, RL, RR (rotate A register)
+  - `misc_handlers.py`: NOP, SCF, CCF, CPL, DAA
+  - `rotate_handlers.py`: RLCA, RRCA, RLA, RRA (unprefixed rotate A)
   - `stack_handlers.py`: PUSH, POP instructions
 
 - `Opcodes.json`: Full Game Boy opcode database (~2.5MB) — see "Opcodes.json Format" below
 
-- `tests/cpu/`: Unit tests for CPU functionality
+- `tests/cpu/`: Unit tests for CPU functionality (328 tests)
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
   - `test_fetch_opcodes_only.py`: Tests for opcodes without operands
   - `test_registers.py`: Register access tests
@@ -45,6 +46,9 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `test_rotate_ops.py`: Rotation/shift operation tests
   - `test_ld_r1_r2.py`: LD r1, r2 instruction tests
   - `test_jump_instructions.py`: JP, JR, CALL, RET, RETI, RST tests
+  - `test_interrupts.py`: Interrupt system tests (Phases 1-5)
+  - `test_load_store.py`: Load/store instruction tests
+  - `test_remaining_opcodes.py`: Conditional JP, ADC n8, ADD SP, DAA tests
 
 ## Critical Implementation Notes
 
@@ -279,10 +283,44 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 
 ### Total Implemented: ~245 unprefixed opcodes (all valid unprefixed opcodes complete)
 
-## Not Yet Implemented (Key Missing Opcodes)
+## Not Yet Implemented: CB-Prefixed Instructions
 
-These are important opcodes still needed for a functional emulator:
-- **CB-prefixed** instructions (bit operations, shifts, rotates on all registers)
+The only remaining CPU opcodes are the 256 CB-prefixed instructions. These are accessed via a `0xCB` prefix byte — the run loop already handles fetching the second byte and looking it up in `Opcodes.json["cbprefixed"]`. What's missing is the handlers and a `cb_opcode_handlers` dispatch table.
+
+### What are CB-prefixed instructions?
+
+The Game Boy's SM83 CPU uses `0xCB` as an escape prefix to access a second 256-opcode table. When the CPU encounters `0xCB`, it reads the next byte and dispatches from the CB table instead of the normal table. This doubles the effective instruction set, providing full bit manipulation, shifts, and rotates on all registers — not just A.
+
+### CB-prefixed instruction map
+
+All 256 opcodes operate on 8 targets in a fixed order: **B, C, D, E, H, L, (HL), A** (encoded in bits 2-0 of the second byte).
+
+| CB range    | Mnemonic | Count | Description                                      | Flags   | Cycles (reg / (HL)) |
+|-------------|----------|-------|--------------------------------------------------|---------|----------------------|
+| 0x00-0x07   | RLC      | 8     | Rotate left circular (bit 7 → carry + bit 0)     | Z 0 0 C | 8 / 16               |
+| 0x08-0x0F   | RRC      | 8     | Rotate right circular (bit 0 → carry + bit 7)    | Z 0 0 C | 8 / 16               |
+| 0x10-0x17   | RL       | 8     | Rotate left through carry                        | Z 0 0 C | 8 / 16               |
+| 0x18-0x1F   | RR       | 8     | Rotate right through carry                       | Z 0 0 C | 8 / 16               |
+| 0x20-0x27   | SLA      | 8     | Shift left arithmetic (0 → bit 0)               | Z 0 0 C | 8 / 16               |
+| 0x28-0x2F   | SRA      | 8     | Shift right arithmetic (bit 7 preserved)         | Z 0 0 C | 8 / 16               |
+| 0x30-0x37   | SWAP     | 8     | Swap upper and lower nibbles                     | Z 0 0 0 | 8 / 16               |
+| 0x38-0x3F   | SRL      | 8     | Shift right logical (0 → bit 7)                 | Z 0 0 C | 8 / 16               |
+| 0x40-0x7F   | BIT      | 64    | Test bit n (Z=1 if bit is 0)                    | Z 0 1 - | 8 / 12               |
+| 0x80-0xBF   | RES      | 64    | Reset (clear) bit n                              | - - - - | 8 / 16               |
+| 0xC0-0xFF   | SET      | 64    | Set bit n                                        | - - - - | 8 / 16               |
+
+### Key differences from unprefixed rotates
+
+The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **always clear Z**. The CB-prefixed RLC/RRC/RL/RR operate on any target and **set Z if result is zero**.
+
+### Implementation approach
+
+The CB table is highly regular (11 operations x 8 targets). Recommended approach:
+1. Create `src/cpu/handlers/cb_handlers.py`
+2. Write one helper function per operation type (e.g., `_rlc(cpu, target)`) that reads the target value, performs the operation, writes back, and sets flags
+3. Generate 256 thin wrapper functions or use a data-driven dispatch table that maps each CB opcode to (operation, target) pairs
+4. Add a `cb_opcode_handlers` dict to the CPU class, dispatched from the existing CB-prefix path in `run()`
+5. For (HL) targets: read from `memory[HL]`, operate, write back — same logic but with memory access
 
 ## Current Test Status
 

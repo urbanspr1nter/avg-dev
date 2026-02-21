@@ -158,6 +158,45 @@ Handlers are called as: `handler(self, opcode_info)` where `self` is the CPU ins
   - Operand handling for instructions with operands
   - Flag states after execution
 
+## CB-Prefixed Instructions (0xCB + second byte)
+
+The Game Boy has a second opcode table of 256 instructions accessed via the `0xCB` prefix byte. When the CPU fetches `0xCB`, it reads the next byte and uses it as an index into the CB-prefixed table. This gives the SM83 a much richer set of bit manipulation and shift/rotate operations than a typical 8080.
+
+### How CB-prefix decoding works
+
+The `run()` loop already handles this: when it sees opcode `0xCB`, it fetches the second byte, looks it up in `Opcodes.json["cbprefixed"]`, and dispatches to a handler. CB-prefixed instructions need their own dispatch table (separate from `opcode_handlers`).
+
+### Instruction layout
+
+All 256 CB opcodes operate on 8 targets in a fixed order: **B, C, D, E, H, L, (HL), A**. The target is encoded in bits 2-0 of the second byte. The operation is encoded in bits 7-3.
+
+| CB range    | Mnemonic | Count | Description                                      | Flags       |
+|-------------|----------|-------|--------------------------------------------------|-------------|
+| 0x00-0x07   | RLC      | 8     | Rotate left circular (bit 7 to carry and bit 0)  | Z 0 0 C     |
+| 0x08-0x0F   | RRC      | 8     | Rotate right circular (bit 0 to carry and bit 7) | Z 0 0 C     |
+| 0x10-0x17   | RL       | 8     | Rotate left through carry                        | Z 0 0 C     |
+| 0x18-0x1F   | RR       | 8     | Rotate right through carry                       | Z 0 0 C     |
+| 0x20-0x27   | SLA      | 8     | Shift left arithmetic (0 into bit 0)             | Z 0 0 C     |
+| 0x28-0x2F   | SRA      | 8     | Shift right arithmetic (bit 7 preserved)         | Z 0 0 C     |
+| 0x30-0x37   | SWAP     | 8     | Swap upper and lower nibbles                     | Z 0 0 0     |
+| 0x38-0x3F   | SRL      | 8     | Shift right logical (0 into bit 7)               | Z 0 0 C     |
+| 0x40-0x7F   | BIT      | 64    | Test bit n (Z set if bit is 0)                   | Z 0 1 -     |
+| 0x80-0xBF   | RES      | 64    | Reset (clear) bit n                              | - - - -     |
+| 0xC0-0xFF   | SET      | 64    | Set bit n                                        | - - - -     |
+
+### Cycle counts
+
+- Register targets (B, C, D, E, H, L, A): **8 cycles** for all operations
+- (HL) memory target: **16 cycles** for most operations, **12 cycles** for BIT
+
+### Difference from unprefixed rotates
+
+The unprefixed rotates (RLCA/RRCA/RLA/RRA at 0x07/0x0F/0x17/0x1F) only operate on register A and always clear the Z flag. The CB-prefixed versions (RLC/RRC/RL/RR) operate on any target and set Z if the result is zero.
+
+### Implementation strategy
+
+Because the CB table is highly regular (11 operations x 8 targets), it lends itself to a data-driven approach: helper functions for each operation type that accept the target name, rather than 256 individual handler functions.
+
 ## Handler File Organization
 
 The CPU class imports handler functions from `src/cpu/handlers/` and registers them in the dispatch table. When adding new handlers:
