@@ -661,6 +661,9 @@ class TestJumpInstructions(unittest.TestCase):
         # Set opcode at 0x0000
         self.cpu.memory.set_value(0x0000, 0xD9)  # RETI
 
+        # Set SP to avoid writing to IE register at 0xFFFF
+        self.cpu.registers.SP = 0xFFFE
+
         # Push return address onto stack
         return_addr = 0xBCDE
         self.cpu.push_word(return_addr)
@@ -675,7 +678,7 @@ class TestJumpInstructions(unittest.TestCase):
         self.assertEqual(self.cpu.registers.PC, 0xBCDE)
 
         # Interrupts should be enabled
-        self.assertTrue(self.cpu.interrupts.enabled)
+        self.assertTrue(self.cpu.interrupts.ime)
 
         self.assertEqual(self.cpu.current_cycles, 16)
 

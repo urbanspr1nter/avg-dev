@@ -93,6 +93,7 @@ from src.cpu.handlers.ld_r1_r2_handlers import (
     ld_a_a,
 )
 from src.cpu.handlers.misc_handlers import nop, scf, ccf, cpl
+from src.cpu.handlers.interrupt_handlers import di, ei, halt
 from src.cpu.handlers.arith_handlers import (
     adc_a_b,
     adc_a_c,
@@ -245,10 +246,88 @@ from src.cpu.handlers.jump_handlers import (
 
 
 class Interrupts:
-    """Minimal interrupts interface for RETI instruction."""
+    """Game Boy interrupt system."""
 
-    def __init__(self):
-        self.enabled = False
+    def __init__(self, cpu=None):
+        self.ime = False  # Interrupt Master Enable flag
+        self.halted = False  # HALT state flag
+        self.enabled = False  # Legacy flag, kept for compatibility
+        self._cpu = cpu  # Reference to CPU for memory access
+
+    def check_interrupts(self, cpu):
+        """Check for pending interrupts and service them if enabled.
+        
+        Returns:
+            int: Number of cycles used (0 if no interrupt serviced)
+        """
+        if not self.ime or self.halted:
+            return 0  # No cycles used if interrupts disabled or CPU halted
+        
+        if_reg = cpu.memory.get_value(0xFF0F)  # Interrupt Flag register
+        ie_reg = cpu.memory.get_value(0xFFFF)  # Interrupt Enable register
+        pending = if_reg & ie_reg
+        
+        # Check interrupts in priority order (V-Blank has highest priority)
+        if pending & 0x01:  # V-Blank interrupt
+            return self.service_interrupt(cpu, 0x40, 0x01)
+        elif pending & 0x02:  # LCD STAT interrupt
+            return self.service_interrupt(cpu, 0x48, 0x02)
+        elif pending & 0x04:  # Timer interrupt
+            return self.service_interrupt(cpu, 0x50, 0x04)
+        elif pending & 0x08:  # Serial interrupt
+            return self.service_interrupt(cpu, 0x58, 0x08)
+        elif pending & 0x10:  # Joypad interrupt
+            return self.service_interrupt(cpu, 0x60, 0x10)
+        
+        return 0
+    
+    def service_interrupt(self, cpu, handler_address, interrupt_bit):
+        """Service an interrupt.
+        
+        Args:
+            cpu: CPU instance
+            handler_address: Address of interrupt handler
+            interrupt_bit: Bit to clear in IF register
+            
+        Returns:
+            int: Number of cycles used (20 for interrupt handling)
+        """
+        # Disable interrupts during service
+        self.ime = False
+        self.halted = False
+        
+        # Push current PC to stack (16-bit operation)
+        cpu.push_word(cpu.registers.PC)
+        
+        # Jump to handler
+        cpu.registers.PC = handler_address
+        
+        # Clear the specific interrupt flag
+        if_reg = cpu.memory.get_value(0xFF0F)
+        cpu.memory.set_value(0xFF0F, if_reg & ~interrupt_bit)
+        
+        return 20  # Interrupt handling takes 20 cycles
+
+    def get_if_register(self) -> int:
+        """Get current IF (Interrupt Flag) register value."""
+        # Read directly from memory array to avoid circular calls
+        return self._cpu.memory.memory[0xFF0F] & 0x1F
+    
+    def set_if_register(self, value: int):
+        """Set IF (Interrupt Flag) register value."""
+        # Write directly to memory array to avoid circular calls
+        self._cpu.memory.memory[0xFF0F] = value & 0x1F
+    
+    def get_ie_register(self) -> int:
+        """Get current IE (Interrupt Enable) register value."""
+        # Read directly from memory array to avoid circular calls
+        return self._cpu.memory.memory[0xFFFF] & 0x1F
+    
+    def set_ie_register(self, value: int):
+        """Set IE (Interrupt Enable) register value."""
+        # Write directly to memory array to avoid circular calls
+        # Store full 8-bit value in memory, but only lower 5 bits are used for interrupts
+        self._cpu.memory.memory[0xFFFF] = value & 0xFF
 
 
 class CPU:
@@ -258,7 +337,7 @@ class CPU:
         self.operand_values = []
 
         # Minimal interrupts interface for RETI instruction
-        self.interrupts = Interrupts()
+        self.interrupts = Interrupts(self)
 
         self.opcodes_db = {}
         with open("Opcodes.json", "r") as f:
@@ -271,6 +350,9 @@ class CPU:
             self.memory = Memory()
         else:
             self.memory = memory
+        
+        # Set CPU reference in memory for interrupt register handling
+        self.memory._cpu = self
 
         # Initialize dispatch table for opcode handlers
         self.opcode_handlers = {
@@ -321,6 +403,10 @@ class CPU:
             0x37: scf,
             0x3F: ccf,
             0x3E: ld_a_n8,
+            # Interrupt control instructions
+            0xF3: di,
+            0xFB: ei,
+            0x76: halt,
             # LD r1, r2 instructions (register to register transfers)
             0x40: ld_b_b,
             0x41: ld_b_c,
@@ -799,6 +885,12 @@ class CPU:
         while True:
             if max_cycles >= 0 and self.current_cycles >= max_cycles:
                 break
+
+            # Check for interrupts before executing next instruction
+            interrupt_cycles = self.interrupts.check_interrupts(self)
+            if interrupt_cycles > 0:
+                self.current_cycles += interrupt_cycles
+                continue  # Skip normal instruction fetch after interrupt
 
             self.operand_values = []
 

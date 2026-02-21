@@ -87,26 +87,26 @@ class TestStack(unittest.TestCase):
 
     def test_stack_wrap_around_on_push(self):
         """Test that SP wraps around correctly when pushing at boundary"""
-        self.cpu.registers.SP = 0x0001
+        self.cpu.registers.SP = 0x0002
         self.cpu.push_word(0x5678)
 
-        # SP should wrap: 0x0001 → 0x0000 → 0xFFFF
-        self.assertEqual(self.cpu.registers.SP, 0xFFFF)
+        # SP should wrap: 0x0002 → 0x0001 → 0x0000
+        self.assertEqual(self.cpu.registers.SP, 0x0000)
 
         # Check memory
-        self.assertEqual(self.cpu.memory.get_value(0xFFFF), 0x78)  # Low byte
-        self.assertEqual(self.cpu.memory.get_value(0x0000), 0x56)  # High byte
+        self.assertEqual(self.cpu.memory.get_value(0x0000), 0x78)  # Low byte
+        self.assertEqual(self.cpu.memory.get_value(0x0001), 0x56)  # High byte
 
     def test_stack_wrap_around_on_pop(self):
         """Test that SP wraps around correctly when popping at boundary"""
-        self.cpu.registers.SP = 0xFFFF
-        self.cpu.memory.set_value(0xFFFF, 0x78)  # Low byte
-        self.cpu.memory.set_value(0x0000, 0x56)  # High byte
+        self.cpu.registers.SP = 0xFFFC
+        self.cpu.memory.set_value(0xFFFC, 0x78)  # Low byte
+        self.cpu.memory.set_value(0xFFFD, 0x56)  # High byte
 
         value = self.cpu.pop_word()
 
-        # SP should wrap: 0xFFFF → 0x0000 → 0x0001
-        self.assertEqual(self.cpu.registers.SP, 0x0001)
+        # SP should increment by 2: 0xFFFC → 0xFFFD → 0xFFFE
+        self.assertEqual(self.cpu.registers.SP, 0xFFFE)
         self.assertEqual(value, 0x5678)
 
     def test_push_pop_preserves_other_registers(self):

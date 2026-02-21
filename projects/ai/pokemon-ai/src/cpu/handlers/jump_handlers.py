@@ -255,7 +255,7 @@ def reti(cpu, opcode_info) -> int:
     cpu.registers.PC = return_addr
 
     # Enable interrupts (IME flag)
-    cpu.interrupts.enabled = True
+    cpu.interrupts.ime = True
 
     return opcode_info["cycles"][0]
 

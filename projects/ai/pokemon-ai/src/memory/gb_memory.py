@@ -51,4 +51,37 @@ class Memory:
         Read an 8-bit value from the given address.
         """
         idx = self._map_address(address)
+        
+        # Handle special memory-mapped registers
+        if address == 0xFF0F:  # IF - Interrupt Flag register
+            # Read current interrupt flag state
+            if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
+                return self._cpu.interrupts.get_if_register()
+        elif address == 0xFFFF:  # IE - Interrupt Enable register
+            # Read current interrupt enable state
+            if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
+                return self._cpu.interrupts.get_ie_register()
+        
         return self.memory[idx]
+
+    def set_value(self, address: int, value: int):
+        """
+        Write an 8-bit value to the given address.
+        In a full emulator ROM areas would be read-only; here we allow
+        writes for simplicity. Value is masked to 0xFF.
+        """
+        idx = self._map_address(address)
+        
+        # Handle special memory-mapped registers
+        if address == 0xFF0F:  # IF - Interrupt Flag register
+            # Write to interrupt flag register
+            if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
+                self._cpu.interrupts.set_if_register(value & 0xFF)
+                return
+        elif address == 0xFFFF:  # IE - Interrupt Enable register
+            # Write to interrupt enable register
+            if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
+                self._cpu.interrupts.set_ie_register(value & 0xFF)
+                return
+        
+        self.memory[idx] = value & 0xFF
