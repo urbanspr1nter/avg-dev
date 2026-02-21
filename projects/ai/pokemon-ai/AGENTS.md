@@ -281,7 +281,7 @@ python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test
 - **CCF**: 0x3F (Complement Carry Flag)
 - **CPL**: 0x2F (Complement A register)
 - **DAA**: 0x27 (Decimal Adjust Accumulator)
-- **STOP**: 0x10
+- **STOP**: 0x10 (stub — full behavior requires joypad + LCD subsystems)
 
 ### Total Implemented: ~245 unprefixed opcodes + 256 CB-prefixed opcodes (ALL opcodes complete)
 

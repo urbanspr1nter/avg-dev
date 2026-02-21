@@ -106,7 +106,7 @@ from src.cpu.handlers.ld_r1_r2_handlers import (
     ld_a_hl,
     ld_a_a,
 )
-from src.cpu.handlers.misc_handlers import nop, scf, ccf, cpl, daa
+from src.cpu.handlers.misc_handlers import nop, stop, scf, ccf, cpl, daa
 from src.cpu.handlers.interrupt_handlers import di, ei, halt
 from src.cpu.handlers.arith_handlers import (
     adc_a_b,
@@ -381,6 +381,7 @@ class CPU:
         # Initialize dispatch table for opcode handlers
         self.opcode_handlers = {
             0x00: nop,
+            0x10: stop,
             0x01: ld_bc_n16,
             0x02: ld_bc_a,
             0x03: inc_bc,

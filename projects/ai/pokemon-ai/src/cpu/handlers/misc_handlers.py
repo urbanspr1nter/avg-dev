@@ -11,6 +11,16 @@ def nop(cpu, opcode_info):
     return opcode_info["cycles"][0]
 
 
+def stop(cpu, opcode_info):
+    """STOP - Halt CPU and LCD until button press (stub).
+
+    On real hardware, STOP halts both the CPU and LCD display until a joypad
+    button is pressed. Full behavior requires joypad and LCD subsystems.
+    For now this is a no-op stub that just consumes the correct cycles.
+    """
+    return opcode_info["cycles"][0]
+
+
 def scf(cpu, opcode_info):
     """SCF - Set Carry Flag"""
     cpu.set_flag("N", False)
