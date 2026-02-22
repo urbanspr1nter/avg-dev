@@ -38,9 +38,6 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
 - `Opcodes.json`: Full Game Boy opcode database (~2.5MB) — see "Opcodes.json Format" below
 
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
-- `tests/cartridge/`: Cartridge and MBC1 bank switching tests (55 tests)
-  - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
-  - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
   - `test_fetch_opcodes_only.py`: Tests for opcodes without operands
   - `test_registers.py`: Register access tests
@@ -55,6 +52,9 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `test_remaining_opcodes.py`: Conditional JP, ADC n8, ADD SP, DAA tests
   - `test_cb_opcodes.py`: All 11 CB operation types with register, (HL), and flag tests
   - `test_cycle_accuracy.py`: Cycle accuracy verification for all opcodes against Opcodes.json (~500 checks)
+- `tests/cartridge/`: Cartridge and MBC1 bank switching tests (55 tests)
+  - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
+  - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
 
 ## Critical Implementation Notes
 
@@ -443,3 +443,65 @@ The Game Boy interrupt system is being implemented in multiple phases:
 - When halted with no pending interrupt, CPU idles at 4 cycles/iteration until
   any interrupt becomes pending (IF & IE != 0), then wakes regardless of IME
 - All memory accesses to 0xFF0F/0xFFFF go through register handlers
+
+## Next Up: PPU (Pixel Processing Unit) / Video
+
+The CPU is complete and validated. The next major subsystem to implement is the PPU.
+
+### What the PPU does
+
+Renders the 160x144 pixel display, one scanline at a time. 154 scanlines per frame (144 visible + 10 V-Blank). Three rendering layers: background (scrollable tile map), window (fixed overlay), and sprites (OAM).
+
+### Key components
+
+| Component | Address Range | Description |
+|-----------|--------------|-------------|
+| VRAM | 0x8000-0x9FFF | 8KB — tile data (0x8000-0x97FF) + two 32x32 tile maps (0x9800-0x9FFF) |
+| OAM | 0xFE00-0xFE9F | 160 bytes — 40 sprite entries, 4 bytes each (Y, X, tile#, attributes) |
+| PPU registers | 0xFF40-0xFF4B | LCDC, STAT, SCY, SCX, LY, LYC, DMA, BGP, OBP0, OBP1, WY, WX |
+
+### PPU registers
+
+| Address | Name | Description |
+|---------|------|-------------|
+| 0xFF40 | LCDC | LCD control — master enable, tile data area, BG/window/sprite enables |
+| 0xFF41 | STAT | LCD status — current mode, LYC=LY flag, interrupt enables |
+| 0xFF42 | SCY | Background scroll Y |
+| 0xFF43 | SCX | Background scroll X |
+| 0xFF44 | LY | Current scanline (0-153, read-only) |
+| 0xFF45 | LYC | LY compare — triggers STAT interrupt when LY == LYC |
+| 0xFF46 | DMA | OAM DMA transfer — write start address, copies 160 bytes to OAM |
+| 0xFF47 | BGP | Background palette |
+| 0xFF48 | OBP0 | Sprite palette 0 |
+| 0xFF49 | OBP1 | Sprite palette 1 |
+| 0xFF4A | WY | Window Y position |
+| 0xFF4B | WX | Window X position (offset by 7: WX=7 means left edge) |
+
+### Mode state machine (per scanline)
+
+Each scanline cycles through modes with specific durations:
+
+| Mode | Name | Duration | VRAM access | OAM access |
+|------|------|----------|-------------|------------|
+| 2 | OAM Scan | 80 T-cycles | Yes | No |
+| 3 | Pixel Transfer | 172 T-cycles (variable) | No | No |
+| 0 | H-Blank | 204 T-cycles (variable) | Yes | Yes |
+| 1 | V-Blank | 4560 T-cycles (10 scanlines) | Yes | Yes |
+
+Total per scanline: 456 T-cycles. Total per frame: 70,224 T-cycles (~59.73 Hz).
+
+### Suggested build order
+
+1. PPU registers + mode state machine (ticks alongside CPU, fires V-Blank/STAT interrupts)
+2. Background rendering (tiles + scroll)
+3. Window rendering
+4. Sprite rendering (OAM)
+5. STAT interrupts + VRAM/OAM access restrictions by mode
+6. DMA transfer
+
+### What Pokemon Red/Blue needs
+
+- Background + window rendering (menus, overworld, battle screens)
+- Sprites (player character, NPCs, Pokemon battle sprites)
+- Scroll registers (overworld camera movement)
+- 4 shades of gray initially (no Super Game Boy color needed yet)
