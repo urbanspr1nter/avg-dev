@@ -62,8 +62,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=12)
 
-        # PC should jump to current PC + offset (0x0000 + 1 + 5 = 0x0006)
-        self.assertEqual(self.cpu.registers.PC, 0x0006)
+        # PC should jump: JR is at 0x0000, 2 bytes, so PC=0x0002 + 5 = 0x0007
+        self.assertEqual(self.cpu.registers.PC, 0x0007)
         self.assertEqual(self.cpu.current_cycles, 12)
 
     def test_run_jr_n_negative_offset(self):
@@ -76,8 +76,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=12)
 
-        # PC should jump to current PC + offset (0x0010 + 1 - 3 = 0x000E)
-        self.assertEqual(self.cpu.registers.PC, 0x000E)
+        # PC should jump: JR is at 0x0010, 2 bytes, so PC=0x0012 + (-3) = 0x000F
+        self.assertEqual(self.cpu.registers.PC, 0x000F)
         self.assertEqual(self.cpu.current_cycles, 12)
 
     def test_run_jr_nz_n_taken(self):
@@ -93,8 +93,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=12)
 
-        # PC should jump to current PC + offset (0x0000 + 1 + 10 = 0x000B)
-        self.assertEqual(self.cpu.registers.PC, 0x000B)
+        # PC should jump: JR NZ is at 0x0000, 2 bytes, so PC=0x0002 + 10 = 0x000C
+        self.assertEqual(self.cpu.registers.PC, 0x000C)
         self.assertEqual(self.cpu.current_cycles, 12)
 
     def test_run_jr_nz_n_not_taken(self):
@@ -110,8 +110,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=8)
 
-        # PC should just advance by operand byte (0x0000 + 1 = 0x0001)
-        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        # PC should advance past the 2-byte JR instruction (0x0000 + 2 = 0x0002)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
         self.assertEqual(self.cpu.current_cycles, 8)
 
     def test_run_jr_z_n_taken(self):
@@ -127,8 +127,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=12)
 
-        # PC should jump to current PC + offset (0x0000 + 1 + 5 = 0x0006)
-        self.assertEqual(self.cpu.registers.PC, 0x0006)
+        # PC should jump: JR Z is at 0x0000, 2 bytes, so PC=0x0002 + 5 = 0x0007
+        self.assertEqual(self.cpu.registers.PC, 0x0007)
         self.assertEqual(self.cpu.current_cycles, 12)
 
     def test_run_jr_z_n_not_taken(self):
@@ -144,8 +144,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=8)
 
-        # PC should just advance by operand byte (0x0000 + 1 = 0x0001)
-        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        # PC should advance past the 2-byte JR instruction (0x0000 + 2 = 0x0002)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
         self.assertEqual(self.cpu.current_cycles, 8)
 
     def test_run_jr_nc_n_taken(self):
@@ -161,8 +161,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=12)
 
-        # PC should jump to current PC + offset (0x0000 + 1 + 8 = 0x0009)
-        self.assertEqual(self.cpu.registers.PC, 0x0009)
+        # PC should jump: JR NC is at 0x0000, 2 bytes, so PC=0x0002 + 8 = 0x000A
+        self.assertEqual(self.cpu.registers.PC, 0x000A)
         self.assertEqual(self.cpu.current_cycles, 12)
 
     def test_run_jr_nc_n_not_taken(self):
@@ -178,8 +178,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=8)
 
-        # PC should just advance by operand byte (0x0000 + 1 = 0x0001)
-        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        # PC should advance past the 2-byte JR instruction (0x0000 + 2 = 0x0002)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
         self.assertEqual(self.cpu.current_cycles, 8)
 
     def test_run_jr_c_n_taken(self):
@@ -195,8 +195,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=12)
 
-        # PC should jump to current PC + offset (0x0000 + 1 + 4 = 0x0005)
-        self.assertEqual(self.cpu.registers.PC, 0x0005)
+        # PC should jump: JR C is at 0x0000, 2 bytes, so PC=0x0002 + 4 = 0x0006
+        self.assertEqual(self.cpu.registers.PC, 0x0006)
         self.assertEqual(self.cpu.current_cycles, 12)
 
     def test_run_jr_c_n_not_taken(self):
@@ -212,8 +212,8 @@ class TestJumpInstructions(unittest.TestCase):
 
         self.cpu.run(max_cycles=8)
 
-        # PC should just advance by operand byte (0x0000 + 1 = 0x0001)
-        self.assertEqual(self.cpu.registers.PC, 0x0001)
+        # PC should advance past the 2-byte JR instruction (0x0000 + 2 = 0x0002)
+        self.assertEqual(self.cpu.registers.PC, 0x0002)
         self.assertEqual(self.cpu.current_cycles, 8)
 
     def test_run_call_nn(self):

@@ -47,9 +47,17 @@ class Memory:
         Reads/writes to 0xFF04-0xFF07 are delegated to the timer handler.
         The timer gets a reference to memory so it can set IF bits, and
         the CPU gets a reference to the timer so it can tick it each cycle.
+
+        Expected call order: Memory -> CPU -> load_timer(). The GameBoy
+        class enforces this. The hasattr guard below exists only as a safety
+        net for unit tests that may wire components in isolation without a CPU.
         """
         self._timer = timer
         self._timer._memory = self
+        # Wire CPU's timer reference if CPU has already been created.
+        # In normal usage (via GameBoy class), CPU always exists by this point.
+        # The guard handles the edge case of unit tests that create Memory + Timer
+        # without a CPU.
         if hasattr(self, '_cpu') and self._cpu:
             self._cpu._timer = timer
 

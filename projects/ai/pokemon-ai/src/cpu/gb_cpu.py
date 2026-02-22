@@ -378,9 +378,10 @@ class CPU:
         # Set CPU reference in memory for interrupt register handling
         self.memory._cpu = self
 
-        # Timer reference — either picked up from memory if already loaded,
-        # or set later by Memory.load_timer(). Both paths covered so
-        # initialization order doesn't matter.
+        # Timer reference — picked up from memory if already loaded (e.g. unit
+        # tests that load timer before CPU), or set later by Memory.load_timer()
+        # when using the normal GameBoy initialization order (Memory -> CPU ->
+        # load_timer). Both paths are covered so timer works regardless of order.
         self._timer = self.memory._timer
 
         # Initialize dispatch table for opcode handlers

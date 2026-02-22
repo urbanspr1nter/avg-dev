@@ -32,9 +32,9 @@ def jr_n(cpu, opcode_info) -> int:
     if offset > 127:
         offset -= 256  # Sign extend to get negative value
 
-    # Calculate new PC: current PC - 1 + offset (PC is after opcode and operand)
-    new_pc = cpu.registers.PC - 1 + offset
-    cpu.registers.PC = new_pc
+    # PC is already past the 2-byte JR instruction (opcode + operand),
+    # so the offset is relative to the current PC value.
+    cpu.registers.PC = cpu.registers.PC + offset
     return opcode_info["cycles"][0]
 
 
@@ -44,15 +44,11 @@ def jr_nz_n(cpu, opcode_info) -> int:
     if offset > 127:
         offset -= 256
 
-    # Check Z flag
-    z_flag = cpu.get_flag("Z")
-    if not z_flag:
-        new_pc = cpu.registers.PC - 1 + offset
-        cpu.registers.PC = new_pc
+    if not cpu.get_flag("Z"):
+        cpu.registers.PC = cpu.registers.PC + offset
         return opcode_info["cycles"][0]  # Jump taken: 12 cycles
 
-    # Jump not taken: PC is already past both opcode and operand, so back up by 1
-    cpu.registers.PC -= 1
+    # Not taken: PC is already past the full 2-byte instruction
     return opcode_info["cycles"][1]  # Jump not taken: 8 cycles
 
 
@@ -62,15 +58,11 @@ def jr_z_n(cpu, opcode_info) -> int:
     if offset > 127:
         offset -= 256
 
-    # Check Z flag
-    z_flag = cpu.get_flag("Z")
-    if z_flag:
-        new_pc = cpu.registers.PC - 1 + offset
-        cpu.registers.PC = new_pc
+    if cpu.get_flag("Z"):
+        cpu.registers.PC = cpu.registers.PC + offset
         return opcode_info["cycles"][0]  # Jump taken: 12 cycles
 
-    # Jump not taken: PC is already past both opcode and operand, so back up by 1
-    cpu.registers.PC -= 1
+    # Not taken: PC is already past the full 2-byte instruction
     return opcode_info["cycles"][1]  # Jump not taken: 8 cycles
 
 
@@ -80,15 +72,11 @@ def jr_nc_n(cpu, opcode_info) -> int:
     if offset > 127:
         offset -= 256
 
-    # Check C flag
-    c_flag = cpu.get_flag("C")
-    if not c_flag:
-        new_pc = cpu.registers.PC - 1 + offset
-        cpu.registers.PC = new_pc
+    if not cpu.get_flag("C"):
+        cpu.registers.PC = cpu.registers.PC + offset
         return opcode_info["cycles"][0]  # Jump taken: 12 cycles
 
-    # Jump not taken: PC is already past both opcode and operand, so back up by 1
-    cpu.registers.PC -= 1
+    # Not taken: PC is already past the full 2-byte instruction
     return opcode_info["cycles"][1]  # Jump not taken: 8 cycles
 
 
@@ -98,15 +86,11 @@ def jr_c_n(cpu, opcode_info) -> int:
     if offset > 127:
         offset -= 256
 
-    # Check C flag
-    c_flag = cpu.get_flag("C")
-    if c_flag:
-        new_pc = cpu.registers.PC - 1 + offset
-        cpu.registers.PC = new_pc
+    if cpu.get_flag("C"):
+        cpu.registers.PC = cpu.registers.PC + offset
         return opcode_info["cycles"][0]  # Jump taken: 12 cycles
 
-    # Jump not taken: PC is already past both opcode and operand, so back up by 1
-    cpu.registers.PC -= 1
+    # Not taken: PC is already past the full 2-byte instruction
     return opcode_info["cycles"][1]  # Jump not taken: 8 cycles
 
 

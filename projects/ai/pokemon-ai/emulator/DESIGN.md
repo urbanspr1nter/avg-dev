@@ -93,6 +93,134 @@ The Game Boy CPU has the following registers:
 | 5   | h    | Half Carry flag (BCD) |
 | 4   | c    | Carry flag |
 
+## Timer Subsystem
+
+The Game Boy has a hardware timer that counts up and fires an interrupt when it overflows. It gives software a reliable way to schedule work at fixed real-time intervals without busy-looping.
+
+### Why a timer matters
+
+The CPU runs instructions as fast as it can, but games need things to happen at **predictable time intervals** — not "after N instructions" but "every X microseconds." Without a timer:
+
+- **Music stops working** — Pokemon's sound engine advances to the next note on each timer interrupt. No timer, no music timing.
+- **RNG breaks** — games read the free-running DIV register as a source of "randomness." It's not truly random, but it's unpredictable from the player's perspective. Pokemon uses DIV for encounter rolls and damage variance.
+- **Test ROMs can't validate speed** — Blargg's test ROMs use the timer to detect whether the CPU executes at the correct speed.
+- **Anything periodic becomes impossible** — input polling at fixed rates, animation timing, serial transfer timeouts.
+
+### The internal counter
+
+Everything is driven by a single **16-bit counter that increments every T-cycle** (4,194,304 times per second). All four timer registers are just different views of this one counter:
+
+```
+Internal counter (16 bits):
+  bit 15 .......................... bit 0
+  [  DIV (upper 8 bits)  ] [ lower 8 bits ]
+```
+
+### Timer registers
+
+| Address | Name | Description |
+|---------|------|-------------|
+| 0xFF04 | DIV | Upper 8 bits of the internal counter. Effectively increments every 256 T-cycles. Writing ANY value resets the entire 16-bit counter to 0 — you cannot set DIV to a specific value. |
+| 0xFF05 | TIMA | Timer counter. Increments at a rate selected by TAC. When it overflows past 0xFF, it reloads from TMA and fires a timer interrupt (IF bit 2). |
+| 0xFF06 | TMA | Timer modulo. The value loaded into TIMA on overflow. Controls where counting restarts. |
+| 0xFF07 | TAC | Timer control. Bit 2 enables/disables TIMA counting. Bits 1-0 select the clock speed. Upper 5 bits always read as 1. |
+
+### Clock speed selection (TAC bits 1-0)
+
+TIMA doesn't count every cycle — it increments when a specific bit of the internal counter **falls from 1 to 0** (a falling edge). The TAC clock select chooses which bit:
+
+| TAC bits 1-0 | Monitored bit | TIMA ticks every | Frequency |
+|---|---|---|---|
+| 00 | bit 9 | 1024 T-cycles | 4,096 Hz |
+| 01 | bit 3 | 16 T-cycles | 262,144 Hz (fastest) |
+| 10 | bit 5 | 64 T-cycles | 65,536 Hz |
+| 11 | bit 7 | 256 T-cycles | 16,384 Hz |
+
+### Falling edge detection
+
+This is the key subtlety. The hardware doesn't simply count "every N cycles." It watches a specific bit of the internal counter and increments TIMA the instant that bit transitions 1→0. This matters because **writing to DIV resets the whole counter**, which can force a falling edge mid-count and cause an unexpected TIMA increment. Games and test ROMs rely on this quirk, so the implementation must be per-cycle:
+
+```python
+old_bit = (old_counter >> clock_bit) & 1
+new_bit = (new_counter >> clock_bit) & 1
+
+if old_bit == 1 and new_bit == 0:
+    tima += 1  # Falling edge detected
+```
+
+### Overflow behavior
+
+When TIMA increments past 0xFF:
+1. TIMA is reloaded with the value in TMA
+2. Bit 2 of the IF register (0xFF0F) is set, requesting a timer interrupt
+
+The CPU services this interrupt (if IME is enabled and IE bit 2 is set) by jumping to the timer interrupt vector at **0x0050**.
+
+### Implementation files
+
+| File | Purpose |
+|------|---------|
+| `src/timer/gb_timer.py` | Timer class with internal counter, falling edge detection, interrupt request |
+| `tests/timer/test_gb_timer.py` | Register access, DIV counting, TIMA at all clock rates, overflow/reload, CPU integration |
+
+## Serial Port
+
+The Game Boy has a simple serial port with two registers used for link cable communication. In our emulator, it serves as a **debug output channel** for test ROMs.
+
+### How Blargg's tests use serial
+
+Blargg's cpu_instrs test ROMs output their results by writing one character at a time to the serial port: write the byte to SB, then write 0x81 to SC (start transfer with internal clock). Our Serial class captures each transmitted byte into a buffer that can be read back as an ASCII string.
+
+### Serial registers
+
+| Address | Name | Description |
+|---------|------|-------------|
+| 0xFF01 | SB | Serial transfer data — the byte to send/receive |
+| 0xFF02 | SC | Serial control — bit 7: transfer start, bit 0: internal clock select |
+
+A transfer is triggered when SC is written with both bit 7 (start) and bit 0 (internal clock) set — value 0x81. The byte in SB is captured, and bit 7 of SC is cleared to signal transfer complete.
+
+### Implementation files
+
+| File | Purpose |
+|------|---------|
+| `src/serial/serial.py` | Serial class with SB/SC registers and output capture buffer |
+| `tests/serial/test_serial.py` | Register access, transfer protocol, memory integration |
+
+## System Initialization (GameBoy class)
+
+The `GameBoy` class in `src/gameboy.py` centralizes the initialization of all hardware components. Without it, callers must know the exact sequence of constructor calls and `load_*()` methods — a fragile setup that silently breaks if the order changes.
+
+### Initialization order
+
+The order matters because components have cross-references:
+
+| Step | What | Why this order |
+|------|------|----------------|
+| 1 | Create Memory | Shared bus — everything reads/writes through it |
+| 2 | Create CPU | Constructor sets `memory._cpu` for interrupt register dispatch (IF/IE) |
+| 3 | load_timer() | Needs Memory (for IF writes) AND CPU (for tick reference). Wires three cross-references. |
+| 4 | load_serial() | Needs Memory for I/O dispatch. No other cross-references. |
+| 5 | load_cartridge() | Optional, at runtime. Only affects Memory read/write for ROM range. |
+
+### Usage
+
+```python
+from src.gameboy import GameBoy
+
+gb = GameBoy()
+gb.load_cartridge("rom/Tetris.gb")
+gb.run(max_cycles=1000000)
+print(gb.get_serial_output())  # Read test ROM results
+```
+
+### Implementation files
+
+| File | Purpose |
+|------|---------|
+| `src/gameboy.py` | GameBoy class — owns and wires Memory, CPU, Timer, Serial, Cartridge |
+| `tests/test_gameboy.py` | Initialization wiring, timer/serial/cartridge integration through GameBoy |
+
 # CPU Implementation Deep Dive
 
 This section is a comprehensive guide for anyone onboarding to the CPU codebase. It explains the architecture, the execution model, how to read the code, how to implement new opcodes, and the tricky parts that will trip you up if you're not careful.
@@ -719,6 +847,11 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `src/cpu/handlers/misc_handlers.py` | NOP, STOP, SCF, CCF, CPL, DAA |
 | `src/cpu/handlers/rotate_handlers.py` | RLCA, RRCA, RLA, RRA (unprefixed A-only rotates) |
 | `src/cpu/handlers/stack_handlers.py` | PUSH, POP |
+| `src/memory/gb_memory.py` | Memory bus with I/O register dispatch (serial, timer, cartridge) |
+| `src/cartridge/gb_cartridge.py` | Cartridge class — ROM loading, header parsing |
+| `src/timer/gb_timer.py` | Timer subsystem — internal counter, TIMA, DIV, interrupt firing |
+| `src/serial/serial.py` | Serial port — SB/SC registers, Blargg output capture |
+| `src/gameboy.py` | GameBoy class — system bootstrap, owns all components |
 | `Opcodes.json` | Authoritative opcode reference (~2.5MB) |
 
 ### Test files
@@ -739,12 +872,29 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `tests/cpu/test_registers.py` | Register access |
 | `tests/cpu/test_stack.py` | Stack operations |
 | `tests/cpu/test_flags.py` | Flag manipulation |
+| `tests/memory/test_gb_memory.py` | Memory read/write, echo RAM, address mapping |
+| `tests/cartridge/test_gb_cartridge.py` | Header parsing, ROM access, checksum validation |
+| `tests/timer/test_gb_timer.py` | DIV counting, TIMA clock rates, overflow/reload, CPU integration |
+| `tests/serial/test_serial.py` | Register access, transfer protocol, memory integration |
+| `tests/test_gameboy.py` | GameBoy initialization wiring, component integration |
 
 ### Running tests
 
 ```bash
-# All CPU tests (388 tests)
+# All tests (479 tests)
+python -m unittest discover tests/ -v
+
+# CPU tests only (388 tests)
 python -m unittest discover tests/cpu -v
+
+# Timer, serial, cartridge, memory tests
+python -m unittest discover tests/timer -v
+python -m unittest discover tests/serial -v
+python -m unittest discover tests/cartridge -v
+python -m unittest discover tests/memory -v
+
+# GameBoy integration tests
+python -m unittest tests.test_gameboy -v
 
 # Specific test file
 python -m unittest tests.cpu.test_cycle_accuracy -v
