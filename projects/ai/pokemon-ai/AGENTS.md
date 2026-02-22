@@ -37,7 +37,7 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
 
 - `Opcodes.json`: Full Game Boy opcode database (~2.5MB) — see "Opcodes.json Format" below
 
-- `tests/cpu/`: Unit tests for CPU functionality (328 tests)
+- `tests/cpu/`: Unit tests for CPU functionality (388 tests)
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
   - `test_fetch_opcodes_only.py`: Tests for opcodes without operands
   - `test_registers.py`: Register access tests
@@ -51,6 +51,7 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `test_load_store.py`: Load/store instruction tests
   - `test_remaining_opcodes.py`: Conditional JP, ADC n8, ADD SP, DAA tests
   - `test_cb_opcodes.py`: All 11 CB operation types with register, (HL), and flag tests
+  - `test_cycle_accuracy.py`: Cycle accuracy verification for all opcodes against Opcodes.json (~500 checks)
 
 ## Critical Implementation Notes
 
@@ -323,7 +324,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-384 tests passing as of February 21, 2026.
+388 tests passing as of February 21, 2026.
 
 ## Interrupt System Implementation Plan
 
