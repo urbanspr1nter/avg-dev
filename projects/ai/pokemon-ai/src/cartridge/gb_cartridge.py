@@ -49,6 +49,15 @@ class Cartridge:
             )
 
         self._parse_header()
+        self._init_mbc()
+
+    def _init_mbc(self):
+        """Initialize MBC state based on cartridge type."""
+        self._rom_bank = 1  # Switchable bank defaults to 1
+        self._ram_bank = 0
+        self._ram_enabled = False
+        self._banking_mode = 0  # 0 = ROM mode, 1 = RAM mode
+        self._num_rom_banks = max(self.rom_size // 0x4000, 2)
 
     def _parse_header(self):
         """Parse the cartridge header at 0x0100-0x014F."""
@@ -81,13 +90,53 @@ class Cartridge:
         )
 
     def read(self, address: int) -> int:
-        """Read one byte from the ROM data at the given offset."""
-        if address < 0 or address >= len(self._rom_data):
+        """Read one byte from the cartridge ROM.
+
+        0x0000-0x3FFF: always bank 0 (fixed).
+        0x4000-0x7FFF: mapped to the currently selected ROM bank.
+        For ROM ONLY cartridges this is always bank 1 (flat access).
+        """
+        if address < 0 or address > 0x7FFF:
             raise IndexError(
-                f"ROM address 0x{address:04X} out of range "
-                f"(ROM size: 0x{len(self._rom_data):04X})"
+                f"ROM address 0x{address:04X} out of range (must be 0x0000-0x7FFF)"
             )
-        return self._rom_data[address]
+        if address <= 0x3FFF:
+            return self._rom_data[address]
+
+        # 0x4000-0x7FFF: offset into the selected bank
+        offset = (self._rom_bank * 0x4000) + (address - 0x4000)
+        if offset < len(self._rom_data):
+            return self._rom_data[offset]
+        return 0xFF  # Out-of-bounds reads return 0xFF
+
+    def write(self, address, value):
+        """Handle writes to the ROM address range (MBC register commands).
+
+        On real hardware, these writes are intercepted by the MBC chip on the
+        cartridge PCB. The MBC decodes only a few upper address bits to
+        determine the register region — see the region table below.
+
+        For ROM ONLY cartridges, writes are silently ignored.
+        """
+        if self.cartridge_type == 0x00:
+            return  # ROM ONLY: no MBC, writes do nothing
+
+        value = value & 0xFF
+        if address <= 0x1FFF:
+            # RAM enable: 0x0A in lower nibble enables, anything else disables
+            self._ram_enabled = (value & 0x0F) == 0x0A
+        elif address <= 0x3FFF:
+            # ROM bank select (lower 5 bits)
+            bank = value & 0x1F
+            if bank == 0:
+                bank = 1  # Bank 0 cannot be selected — MBC1 treats 0 as 1
+            self._rom_bank = bank % self._num_rom_banks
+        elif address <= 0x5FFF:
+            # RAM bank or upper ROM bank bits (2 bits)
+            self._ram_bank = value & 0x03
+        elif address <= 0x7FFF:
+            # Banking mode select
+            self._banking_mode = value & 0x01
 
     def size(self) -> int:
         """Return the total ROM data length in bytes."""

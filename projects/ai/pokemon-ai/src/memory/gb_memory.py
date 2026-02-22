@@ -109,8 +109,9 @@ class Memory:
         are ignored — ROM is read-only on real hardware. Without a cartridge
         (e.g. in tests), writes are allowed for simplicity.
         """
-        # ROM range: ignore writes when a cartridge is loaded
+        # ROM range: forward to cartridge for MBC register handling
         if address <= 0x7FFF and self._cartridge is not None:
+            self._cartridge.write(address, value)
             return
 
         # I/O register dispatch
