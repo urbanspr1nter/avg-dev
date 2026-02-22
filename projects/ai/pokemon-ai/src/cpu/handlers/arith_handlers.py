@@ -236,7 +236,7 @@ def add_hl_hl(cpu, opcode_info) -> int:
 
     # Update flags
     cpu.set_flag("N", False)
-    cpu.set_flag("H", (hl_value & 0x7FF) > 0x7FF)
+    cpu.set_flag("H", (hl_value & 0xFFF) + (hl_value & 0xFFF) > 0xFFF)
     cpu.set_flag("C", result > 0xFFFF)
 
     # Store result in HL
@@ -785,7 +785,7 @@ def sbc_a_a(cpu, opcode_info) -> int:
     # Update flags
     cpu.set_flag("Z", (result & 0xFF) == 0)
     cpu.set_flag("N", True)
-    cpu.set_flag("H", False)
+    cpu.set_flag("H", (a_value & 0xF) < (a_value & 0xF) + (1 if carry_flag else 0))
     cpu.set_flag("C", result < 0)
 
     # Store result in A

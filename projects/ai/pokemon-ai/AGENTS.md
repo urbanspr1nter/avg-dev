@@ -38,6 +38,9 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
 - `Opcodes.json`: Full Game Boy opcode database (~2.5MB) — see "Opcodes.json Format" below
 
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
+- `tests/cartridge/`: Cartridge and MBC1 bank switching tests (55 tests)
+  - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
+  - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
   - `test_fetch_opcodes_only.py`: Tests for opcodes without operands
   - `test_registers.py`: Register access tests
@@ -324,7 +327,15 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-388 tests passing as of February 21, 2026.
+506 tests passing as of February 22, 2026.
+
+### Blargg Test ROM Validation
+
+Both Blargg test ROMs pass, confirming full instruction correctness and cycle-accurate timing:
+- **cpu_instrs**: All 11 sub-tests pass (special ops, interrupts, op sp/hl, op r/imm, op rp, ld r/r, jr/jp/call/ret/rst, misc instrs, op r/r, bit ops, op a/(hl))
+- **instr_timing**: Passed
+
+Run with: `python run_blargg.py rom/cpu_instrs.gb`
 
 ## Interrupt System Implementation Plan
 
@@ -377,23 +388,20 @@ The Game Boy interrupt system is being implemented in multiple phases:
 - ✅ Partial IE mask: only IE-enabled interrupts fire, disabled ones ignored
 - ✅ 8 new tests, all 290 tests passing (32 interrupt tests, 1 skipped for CB-prefixed)
 
-### 📋 Phase 6: Real ROM Integration Testing
-- Test with actual Game Boy ROMs that use interrupts
-- Validate interrupt-driven game mechanics
-- Cycle-accurate timing verification
-- Compatibility testing with various ROMs
+### ✅ Phase 6: Real ROM Integration Testing (COMPLETED)
+- ✅ Blargg cpu_instrs: all 11 sub-tests pass
+- ✅ Blargg instr_timing: passed
+- ✅ Fixed 3 instruction bugs found by Blargg tests:
+  - ADD HL,HL: H flag half-carry check was always false (needed bit 11 carry test)
+  - SBC A,A: H flag was hardcoded False (incorrect when carry set — nibble borrow occurs)
+  - POP AF: lower 4 bits of F register must be masked to 0 (hardware constraint)
+- ✅ MBC1 bank switching enables loading multi-bank ROMs like cpu_instrs
 
 ### 📋 Phase 7: Performance Optimization
 - Optimize interrupt checking in CPU run loop
 - Memory access optimizations for interrupt registers
 - State caching improvements
 - Benchmarking and profiling
-
-### 📋 Phase 8: Final Validation and Documentation
-- Complete edge case test suite
-- Comprehensive documentation of interrupt system
-- Final regression testing
-- Integration validation with full emulator
 
 ## Interrupt System Architecture
 

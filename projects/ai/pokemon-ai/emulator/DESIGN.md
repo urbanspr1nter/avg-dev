@@ -848,7 +848,7 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `src/cpu/handlers/rotate_handlers.py` | RLCA, RRCA, RLA, RRA (unprefixed A-only rotates) |
 | `src/cpu/handlers/stack_handlers.py` | PUSH, POP |
 | `src/memory/gb_memory.py` | Memory bus with I/O register dispatch (serial, timer, cartridge) |
-| `src/cartridge/gb_cartridge.py` | Cartridge class — ROM loading, header parsing |
+| `src/cartridge/gb_cartridge.py` | Cartridge class — ROM loading, header parsing, MBC1 bank switching |
 | `src/timer/gb_timer.py` | Timer subsystem — internal counter, TIMA, DIV, interrupt firing |
 | `src/serial/serial.py` | Serial port — SB/SC registers, Blargg output capture |
 | `src/gameboy.py` | GameBoy class — system bootstrap, owns all components |
@@ -874,6 +874,7 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `tests/cpu/test_flags.py` | Flag manipulation |
 | `tests/memory/test_gb_memory.py` | Memory read/write, echo RAM, address mapping |
 | `tests/cartridge/test_gb_cartridge.py` | Header parsing, ROM access, checksum validation |
+| `tests/cartridge/test_mbc1.py` | MBC1 bank switching: ROM banking, RAM banking, mode select |
 | `tests/timer/test_gb_timer.py` | DIV counting, TIMA clock rates, overflow/reload, CPU integration |
 | `tests/serial/test_serial.py` | Register access, transfer protocol, memory integration |
 | `tests/test_gameboy.py` | GameBoy initialization wiring, component integration |
@@ -881,16 +882,18 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 ### Running tests
 
 ```bash
-# All tests (479 tests)
+# All tests (506 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
 python -m unittest discover tests/cpu -v
 
-# Timer, serial, cartridge, memory tests
+# Cartridge tests (55 tests, includes MBC1 bank switching)
+python -m unittest discover tests/cartridge -v
+
+# Timer, serial, memory tests
 python -m unittest discover tests/timer -v
 python -m unittest discover tests/serial -v
-python -m unittest discover tests/cartridge -v
 python -m unittest discover tests/memory -v
 
 # GameBoy integration tests
@@ -902,3 +905,30 @@ python -m unittest tests.cpu.test_cycle_accuracy -v
 # Specific test method
 python -m unittest tests.cpu.test_cb_opcodes.TestCBRLC.test_rlc_b -v
 ```
+
+### Blargg test ROM validation
+
+The CPU passes both Blargg test ROMs, confirming instruction correctness and cycle-accurate timing:
+
+```bash
+# Run Blargg cpu_instrs (all 11 sub-tests)
+python run_blargg.py rom/cpu_instrs.gb
+
+# Run Blargg instr_timing
+python run_blargg.py rom/instr_timing.gb
+```
+
+| Test ROM | Sub-tests | Status |
+|----------|-----------|--------|
+| cpu_instrs | 01: special ops | Passed |
+| cpu_instrs | 02: interrupts | Passed |
+| cpu_instrs | 03: op sp,hl | Passed |
+| cpu_instrs | 04: op r,imm | Passed |
+| cpu_instrs | 05: op rp | Passed |
+| cpu_instrs | 06: ld r,r | Passed |
+| cpu_instrs | 07: jr,jp,call,ret,rst | Passed |
+| cpu_instrs | 08: misc instrs | Passed |
+| cpu_instrs | 09: op r,r | Passed |
+| cpu_instrs | 10: bit ops | Passed |
+| cpu_instrs | 11: op a,(hl) | Passed |
+| instr_timing | (single test) | Passed |

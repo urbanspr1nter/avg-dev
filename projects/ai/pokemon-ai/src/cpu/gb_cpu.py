@@ -718,7 +718,7 @@ class CPU:
     def set_register(self, code, value):
         """Set the value of a register or its high/low byte."""
         if code == "AF":
-            self.registers.AF = value
+            self.registers.AF = value & 0xFFF0  # Lower 4 bits of F are always 0
         elif code == "A":
             self.registers.AF = ((value & 0xFF) << 8) | (self.registers.AF & 0x00FF)
         elif code == "BC":

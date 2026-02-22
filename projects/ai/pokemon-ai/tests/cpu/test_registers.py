@@ -71,9 +71,9 @@ class TestRegisters(unittest.TestCase):
         self.assertEqual(self.cpu.get_register('PC'), 0xBA98)
         
     def test_set_register_af(self):
-        """Test setting AF register"""
+        """Test setting AF register (lower 4 bits of F always 0)"""
         self.cpu.set_register('AF', 0x1234)
-        self.assertEqual(self.cpu.registers.AF, 0x1234)
+        self.assertEqual(self.cpu.registers.AF, 0x1230)
         
     def test_set_register_a(self):
         """Test setting A (high byte of AF)"""

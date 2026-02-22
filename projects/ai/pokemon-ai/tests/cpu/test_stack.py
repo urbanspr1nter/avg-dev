@@ -148,7 +148,8 @@ class TestStack(unittest.TestCase):
         self.assertEqual(self.cpu.registers.SP, 0xFFFC)
 
         # Check memory (little-endian: low byte at lower address)
-        self.assertEqual(self.cpu.memory.get_value(0xFFFC), 0xCD)  # Low byte
+        # AF 0xABCD is stored as 0xABC0 (lower 4 bits of F always 0)
+        self.assertEqual(self.cpu.memory.get_value(0xFFFC), 0xC0)  # Low byte (F with lower 4 bits masked)
         self.assertEqual(self.cpu.memory.get_value(0xFFFD), 0xAB)  # High byte
 
     def test_run_pop_af(self):
@@ -170,8 +171,8 @@ class TestStack(unittest.TestCase):
         # SP should increment by 2
         self.assertEqual(self.cpu.registers.SP, 0xFFFE)
 
-        # AF should be set to popped value
-        self.assertEqual(self.cpu.get_register("AF"), 0x5678)
+        # AF should be set to popped value (lower 4 bits of F masked to 0)
+        self.assertEqual(self.cpu.get_register("AF"), 0x5670)
 
     def test_run_push_bc(self):
         """Test running PUSH BC instruction (0xC5, 16 cycles)"""
