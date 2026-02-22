@@ -22,6 +22,8 @@ class Memory:
         # 64 KiB of memory, each cell holds an 8-bit value.
         self.memory = [0] * 0x10000
         self._cartridge = None
+        self._serial = None
+        self._timer = None
 
     def load_cartridge(self, cartridge):
         """Load a cartridge into the memory bus.
@@ -31,6 +33,25 @@ class Memory:
         (ROM is read-only on real hardware).
         """
         self._cartridge = cartridge
+
+    def load_serial(self, serial):
+        """Load a serial port handler into the memory bus.
+
+        Reads/writes to 0xFF01-0xFF02 are delegated to the serial handler.
+        """
+        self._serial = serial
+
+    def load_timer(self, timer):
+        """Load a timer into the memory bus.
+
+        Reads/writes to 0xFF04-0xFF07 are delegated to the timer handler.
+        The timer gets a reference to memory so it can set IF bits, and
+        the CPU gets a reference to the timer so it can tick it each cycle.
+        """
+        self._timer = timer
+        self._timer._memory = self
+        if hasattr(self, '_cpu') and self._cpu:
+            self._cpu._timer = timer
 
     def _map_address(self, address: int) -> int:
         """
@@ -55,6 +76,12 @@ class Memory:
         if address <= 0x7FFF and self._cartridge is not None:
             return self._cartridge.read(address)
 
+        # I/O register dispatch
+        if 0xFF01 <= address <= 0xFF02 and self._serial is not None:
+            return self._serial.read(address)
+        if 0xFF04 <= address <= 0xFF07 and self._timer is not None:
+            return self._timer.read(address)
+
         idx = self._map_address(address)
 
         # Handle special memory-mapped registers
@@ -76,6 +103,14 @@ class Memory:
         """
         # ROM range: ignore writes when a cartridge is loaded
         if address <= 0x7FFF and self._cartridge is not None:
+            return
+
+        # I/O register dispatch
+        if 0xFF01 <= address <= 0xFF02 and self._serial is not None:
+            self._serial.write(address, value)
+            return
+        if 0xFF04 <= address <= 0xFF07 and self._timer is not None:
+            self._timer.write(address, value)
             return
 
         idx = self._map_address(address)

@@ -378,6 +378,11 @@ class CPU:
         # Set CPU reference in memory for interrupt register handling
         self.memory._cpu = self
 
+        # Timer reference — either picked up from memory if already loaded,
+        # or set later by Memory.load_timer(). Both paths covered so
+        # initialization order doesn't matter.
+        self._timer = self.memory._timer
+
         # Initialize dispatch table for opcode handlers
         self.opcode_handlers = {
             0x00: nop,
@@ -951,6 +956,8 @@ class CPU:
                     # No interrupt pending — consume one machine cycle and loop
                     self.current_cycles += 4
                     cycles_consumed += 4
+                    if self._timer:
+                        self._timer.tick(4)
                     continue
 
             # Check if we need to enable IME after the previous instruction
@@ -1066,6 +1073,8 @@ class CPU:
             cycles_used = handler(self, opcode_info)
             self.current_cycles += cycles_used
             cycles_consumed += cycles_used
+            if self._timer:
+                self._timer.tick(cycles_used)
 
             # Handle delayed IME enable from EI instruction
             # This happens AFTER the instruction executes for correct EI delay timing
