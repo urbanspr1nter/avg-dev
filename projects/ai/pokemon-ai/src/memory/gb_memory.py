@@ -21,6 +21,16 @@ class Memory:
     def __init__(self):
         # 64 KiB of memory, each cell holds an 8-bit value.
         self.memory = [0] * 0x10000
+        self._cartridge = None
+
+    def load_cartridge(self, cartridge):
+        """Load a cartridge into the memory bus.
+
+        When a cartridge is loaded, reads from 0x0000-0x7FFF are delegated
+        to the cartridge ROM data, and writes to that range are ignored
+        (ROM is read-only on real hardware).
+        """
+        self._cartridge = cartridge
 
     def _map_address(self, address: int) -> int:
         """
@@ -37,41 +47,39 @@ class Memory:
 
         return address
 
-    def set_value(self, address: int, value: int):
-        """
-        Write an 8-bit value to the given address.
-        In a full emulator ROM areas would be read-only; here we allow
-        writes for simplicity. Value is masked to 0xFF.
-        """
-        idx = self._map_address(address)
-        self.memory[idx] = value & 0xFF
-
     def get_value(self, address: int) -> int:
         """
         Read an 8-bit value from the given address.
         """
+        # ROM range: delegate to cartridge when one is loaded
+        if address <= 0x7FFF and self._cartridge is not None:
+            return self._cartridge.read(address)
+
         idx = self._map_address(address)
-        
+
         # Handle special memory-mapped registers
         if address == 0xFF0F:  # IF - Interrupt Flag register
-            # Read current interrupt flag state
             if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
                 return self._cpu.interrupts.get_if_register()
         elif address == 0xFFFF:  # IE - Interrupt Enable register
-            # Read current interrupt enable state
             if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
                 return self._cpu.interrupts.get_ie_register()
-        
+
         return self.memory[idx]
 
     def set_value(self, address: int, value: int):
         """
         Write an 8-bit value to the given address.
-        In a full emulator ROM areas would be read-only; here we allow
-        writes for simplicity. Value is masked to 0xFF.
+        When a cartridge is loaded, writes to the ROM range (0x0000-0x7FFF)
+        are ignored — ROM is read-only on real hardware. Without a cartridge
+        (e.g. in tests), writes are allowed for simplicity.
         """
+        # ROM range: ignore writes when a cartridge is loaded
+        if address <= 0x7FFF and self._cartridge is not None:
+            return
+
         idx = self._map_address(address)
-        
+
         # Handle special memory-mapped registers
         if address == 0xFF0F:  # IF - Interrupt Flag register
             # Write to interrupt flag register

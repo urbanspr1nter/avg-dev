@@ -216,3 +216,8 @@ __marimo__/
 .streamlit/secrets.toml
 
 .venv
+
+# ROM files (copyrighted, do not commit)
+rom/
+*.gb
+*.gbc
