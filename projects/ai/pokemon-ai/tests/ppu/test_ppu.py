@@ -405,5 +405,225 @@ class TestPPUCPUIntegration(unittest.TestCase):
         self.assertEqual(self.ppu._mode, 3)  # Should have transitioned to mode 3
 
 
+class TestPPUFramebuffer(unittest.TestCase):
+    """Framebuffer initialization and dimensions."""
+
+    def setUp(self):
+        self.ppu = PPU()
+
+    def test_framebuffer_initialized_to_zeros(self):
+        fb = self.ppu.get_framebuffer()
+        for row in fb:
+            for shade in row:
+                self.assertEqual(shade, 0)
+
+    def test_framebuffer_dimensions(self):
+        fb = self.ppu.get_framebuffer()
+        self.assertEqual(len(fb), 144)
+        for row in fb:
+            self.assertEqual(len(row), 160)
+
+
+class _RenderTestBase(unittest.TestCase):
+    """Base class that wires Memory + PPU and provides VRAM helpers."""
+
+    def setUp(self):
+        self.memory = Memory()
+        self.ppu = PPU()
+        self.memory.load_ppu(self.ppu)
+        # Default LCDC: LCD on, BG on, unsigned tile data (bit 4),
+        # tile map 0x9800 (bit 3 = 0)
+        self.ppu._lcdc = 0x91  # 1001_0001
+
+    def _write_tile(self, tile_addr, rows):
+        """Write tile data at tile_addr.
+
+        rows: list of 8 tuples (low_byte, high_byte).
+        """
+        for i, (lo, hi) in enumerate(rows):
+            self.memory.memory[tile_addr + i * 2] = lo
+            self.memory.memory[tile_addr + i * 2 + 1] = hi
+
+    def _set_tile_map_entry(self, row, col, tile_index, base=0x9800):
+        """Set tile map entry at (row, col) to tile_index."""
+        self.memory.memory[base + row * 32 + col] = tile_index
+
+    def _render_scanline(self, ly=0):
+        """Force-render a specific scanline."""
+        self.ppu._ly = ly
+        self.ppu._render_scanline()
+
+
+class TestPPUTileDecoding(_RenderTestBase):
+    """Tile data decoding and palette application."""
+
+    def test_solid_tile_renders_correct_shade(self):
+        # Tile at index 0 → address 0x8000 (unsigned mode)
+        # All pixels color index 3 → lo=0xFF, hi=0xFF
+        solid_rows = [(0xFF, 0xFF)] * 8
+        self._write_tile(0x8000, solid_rows)
+        self._set_tile_map_entry(0, 0, 0)
+        # BGP = 0xFC → color 3 maps to shade 3
+        self.ppu._bgp = 0xFC
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        # First 8 pixels should be shade 3
+        for px in range(8):
+            self.assertEqual(fb[0][px], 3, f"pixel {px}")
+
+    def test_alternating_tile_pattern(self):
+        # lo=0xAA (10101010), hi=0x00 → color indices: 0,1,0,1,0,1,0,1
+        alt_rows = [(0xAA, 0x00)] * 8
+        self._write_tile(0x8000, alt_rows)
+        self._set_tile_map_entry(0, 0, 0)
+        # BGP = 0xE4 → identity palette (0→0, 1→1, 2→2, 3→3)
+        self.ppu._bgp = 0xE4
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            expected = 1 if (px % 2 == 0) else 0  # bit 7-0: 1,0,1,0,1,0,1,0
+            self.assertEqual(fb[0][px], expected, f"pixel {px}")
+
+    def test_palette_remapping(self):
+        # Solid tile color index 3 (lo=0xFF, hi=0xFF)
+        self._write_tile(0x8000, [(0xFF, 0xFF)] * 8)
+        self._set_tile_map_entry(0, 0, 0)
+        # BGP = 0x00 → all color indices map to shade 0
+        self.ppu._bgp = 0x00
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            self.assertEqual(fb[0][px], 0, f"pixel {px}")
+
+        # Change palette: BGP = 0x54 → color 3 maps to shade 1
+        # Binary: 01_01_01_00 → color 0→0, 1→1, 2→1, 3→1
+        self.ppu._bgp = 0x54
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            self.assertEqual(fb[0][px], 1, f"pixel {px}")
+
+
+class TestPPUScrolling(_RenderTestBase):
+    """SCX/SCY scroll offsets and wrapping."""
+
+    def test_scx_offset(self):
+        # Tile 0 at 0x8000: all color 0 (blank)
+        self._write_tile(0x8000, [(0x00, 0x00)] * 8)
+        # Tile 1 at 0x8010: all color 3 (solid)
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # Tile map: col 0 = tile 0, col 1 = tile 1
+        self._set_tile_map_entry(0, 0, 0)
+        self._set_tile_map_entry(0, 1, 1)
+        self.ppu._bgp = 0xE4  # identity palette
+
+        # No scroll → first 8 pixels from tile 0 (shade 0)
+        self.ppu._scx = 0
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            self.assertEqual(fb[0][px], 0, f"pixel {px}")
+
+        # SCX = 8 → first 8 pixels now from tile 1 (shade 3)
+        self.ppu._scx = 8
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            self.assertEqual(fb[0][px], 3, f"pixel {px}")
+
+    def test_scy_offset(self):
+        # Tile 0: all color 0, Tile 1: all color 3
+        self._write_tile(0x8000, [(0x00, 0x00)] * 8)
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # Row 0 = tile 0, Row 1 = tile 1
+        self._set_tile_map_entry(0, 0, 0)
+        self._set_tile_map_entry(1, 0, 1)
+        self.ppu._bgp = 0xE4
+
+        # SCY = 0, LY = 0 → tile row 0 → tile 0 → shade 0
+        self.ppu._scy = 0
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 0)
+
+        # SCY = 8, LY = 0 → tile row 1 → tile 1 → shade 3
+        self.ppu._scy = 8
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3)
+
+    def test_scroll_wrapping(self):
+        # Tile 1 at 0x8010: all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # Place tile 1 at tile map position (31, 31) — last row/col
+        self._set_tile_map_entry(31, 31, 1)
+        self.ppu._bgp = 0xE4
+
+        # SCX = 248 (31*8), SCY = 248 → reads from tile map (31, 31)
+        self.ppu._scx = 248
+        self.ppu._scy = 248
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            self.assertEqual(fb[0][px], 3, f"pixel {px}")
+
+
+class TestPPUTileAddressing(_RenderTestBase):
+    """LCDC bit 4 tile data addressing modes."""
+
+    def test_unsigned_addressing_mode(self):
+        # LCDC bit 4 = 1 (unsigned): tile 0 → 0x8000
+        self.ppu._lcdc = 0x91  # bit 4 set
+        self._write_tile(0x8000, [(0xFF, 0xFF)] * 8)
+        self._set_tile_map_entry(0, 0, 0)
+        self.ppu._bgp = 0xE4
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3)
+
+    def test_signed_addressing_mode(self):
+        # LCDC bit 4 = 0 (signed): tile index 0 → 0x9000
+        self.ppu._lcdc = 0x81  # bit 4 clear
+        self._write_tile(0x9000, [(0xFF, 0xFF)] * 8)
+        self._set_tile_map_entry(0, 0, 0)
+        self.ppu._bgp = 0xE4
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3)
+
+    def test_signed_addressing_negative_index(self):
+        # Tile index 128 (0x80) → signed = -128 → 0x9000 + (-128)*16 = 0x8800
+        self.ppu._lcdc = 0x81  # bit 4 clear
+        self._write_tile(0x8800, [(0xFF, 0xFF)] * 8)
+        self._set_tile_map_entry(0, 0, 128)
+        self.ppu._bgp = 0xE4
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3)
+
+
+class TestPPURenderASCII(unittest.TestCase):
+    """ASCII framebuffer rendering."""
+
+    def setUp(self):
+        self.ppu = PPU()
+
+    def test_render_ascii_returns_string(self):
+        result = self.ppu.render_ascii()
+        self.assertIsInstance(result, str)
+        lines = result.split("\n")
+        self.assertEqual(len(lines), 144)
+        for line in lines:
+            self.assertEqual(len(line), 160)
+
+    def test_render_ascii_shade_mapping(self):
+        # Set specific shades and verify ASCII output
+        self.ppu._framebuffer[0][0] = 0
+        self.ppu._framebuffer[0][1] = 1
+        self.ppu._framebuffer[0][2] = 2
+        self.ppu._framebuffer[0][3] = 3
+        result = self.ppu.render_ascii()
+        first_line = result.split("\n")[0]
+        self.assertEqual(first_line[0], " ")
+        self.assertEqual(first_line[1], "░")
+        self.assertEqual(first_line[2], "▒")
+        self.assertEqual(first_line[3], "█")
+
+
 if __name__ == '__main__':
     unittest.main()

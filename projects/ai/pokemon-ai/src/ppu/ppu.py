@@ -43,6 +43,8 @@ class PPU:
         self._dot = 0           # Dot counter within current scanline (0-455)
         self._mode = 2          # Current PPU mode (starts at OAM Scan)
         self._memory = None     # Set by Memory.load_ppu() for IF register access
+        # --- Framebuffer ---
+        self._framebuffer = [[0] * 160 for _ in range(144)]
 
     # ------------------------------------------------------------------ #
     #  Register read
@@ -138,6 +140,8 @@ class PPU:
                     self._set_mode(3)
                 elif self._dot == self.PIXEL_TRANSFER_END:
                     self._set_mode(0)
+                    if self._ly < self.VISIBLE_SCANLINES:
+                        self._render_scanline()
                 elif self._dot == self.DOTS_PER_SCANLINE:
                     self._dot = 0
                     self._ly += 1
@@ -178,3 +182,69 @@ class PPU:
         if self._memory is not None:
             if_val = self._memory.memory[0xFF0F]
             self._memory.memory[0xFF0F] = if_val | 0x01
+
+    # ------------------------------------------------------------------ #
+    #  Background rendering
+    # ------------------------------------------------------------------ #
+
+    def _render_scanline(self) -> None:
+        """Render the current scanline's background into the framebuffer."""
+        if self._memory is None:
+            return
+
+        ly = self._ly
+        scy = self._scy
+        scx = self._scx
+        lcdc = self._lcdc
+        bgp = self._bgp
+        mem = self._memory.memory
+
+        # BG tile map base: LCDC bit 3
+        tile_map_base = 0x9C00 if lcdc & 0x08 else 0x9800
+        # Tile data addressing: LCDC bit 4
+        unsigned_mode = bool(lcdc & 0x10)
+
+        scroll_y = (ly + scy) & 0xFF
+        tile_row = scroll_y >> 3        # scroll_y // 8
+        row_in_tile = scroll_y & 0x07   # scroll_y % 8
+
+        row = self._framebuffer[ly]
+        for px in range(160):
+            scroll_x = (px + scx) & 0xFF
+            tile_col = scroll_x >> 3    # scroll_x // 8
+
+            tile_index = mem[tile_map_base + tile_row * 32 + tile_col]
+
+            if unsigned_mode:
+                tile_addr = 0x8000 + tile_index * 16
+            else:
+                # Signed addressing: tile_index is treated as signed byte
+                if tile_index > 127:
+                    tile_index -= 256
+                tile_addr = 0x9000 + tile_index * 16
+
+            byte_offset = tile_addr + row_in_tile * 2
+            low_byte = mem[byte_offset]
+            high_byte = mem[byte_offset + 1]
+
+            bit_pos = 7 - (scroll_x & 0x07)
+            color_index = (((high_byte >> bit_pos) & 1) << 1) | ((low_byte >> bit_pos) & 1)
+            shade = (bgp >> (color_index * 2)) & 0x03
+            row[px] = shade
+
+    # ------------------------------------------------------------------ #
+    #  Public accessors
+    # ------------------------------------------------------------------ #
+
+    def get_framebuffer(self):
+        """Return the 160x144 framebuffer (list of lists, shade values 0-3)."""
+        return self._framebuffer
+
+    _ASCII_SHADES = [" ", "░", "▒", "█"]
+
+    def render_ascii(self) -> str:
+        """Return an ASCII string representation of the framebuffer."""
+        lines = []
+        for row in self._framebuffer:
+            lines.append("".join(self._ASCII_SHADES[shade] for shade in row))
+        return "\n".join(lines)

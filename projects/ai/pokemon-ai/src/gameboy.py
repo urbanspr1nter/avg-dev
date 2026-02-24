@@ -84,3 +84,7 @@ class GameBoy:
     def get_serial_output(self):
         """Return any serial output captured so far (ASCII string)."""
         return self.serial.get_output()
+
+    def get_framebuffer(self):
+        """Return the PPU's 160x144 framebuffer (shade values 0-3)."""
+        return self.ppu.get_framebuffer()
