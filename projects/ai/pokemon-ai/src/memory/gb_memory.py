@@ -97,12 +97,20 @@ class Memory:
         if address <= 0x7FFF and self._cartridge is not None:
             return self._cartridge.read(address)
 
-        # VRAM/OAM access restrictions by PPU mode
-        if self._ppu is not None:
+        # VRAM/OAM access restrictions by PPU mode (only when LCD is enabled)
+        if self._ppu is not None and (self._ppu._lcdc & 0x80):
             if 0x8000 <= address <= 0x9FFF and self._ppu._mode == 3:
                 return 0xFF
             if 0xFE00 <= address <= 0xFE9F and self._ppu._mode in (2, 3):
                 return 0xFF
+
+        # HACK: Joypad stub — always returns "no buttons pressed".
+        # TODO: Replace with a proper Joypad class (like Timer/Serial/PPU) that
+        # tracks button state, handles select-line multiplexing, and supports
+        # the joypad interrupt (IF bit 4). Needed for actual game input via REST API.
+        if address == 0xFF00:
+            select = self.memory[0xFF00] & 0x30
+            return 0xC0 | select | 0x0F
 
         # I/O register dispatch
         if 0xFF01 <= address <= 0xFF02 and self._serial is not None:
@@ -136,8 +144,8 @@ class Memory:
             self._cartridge.write(address, value)
             return
 
-        # VRAM/OAM access restrictions by PPU mode
-        if self._ppu is not None:
+        # VRAM/OAM access restrictions by PPU mode (only when LCD is enabled)
+        if self._ppu is not None and (self._ppu._lcdc & 0x80):
             if 0x8000 <= address <= 0x9FFF and self._ppu._mode == 3:
                 return
             if 0xFE00 <= address <= 0xFE9F and self._ppu._mode in (2, 3):

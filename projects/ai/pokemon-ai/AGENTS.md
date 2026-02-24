@@ -350,7 +350,18 @@ Both Blargg test ROMs pass, confirming full instruction correctness and cycle-ac
 - **cpu_instrs**: All 11 sub-tests pass (special ops, interrupts, op sp/hl, op r/imm, op rp, ld r/r, jr/jp/call/ret/rst, misc instrs, op r/r, bit ops, op a/(hl))
 - **instr_timing**: Passed
 
-Run with: `python run_blargg.py rom/cpu_instrs.gb`
+Run with: `python run_blargg.py rom/blargg/cpu_instrs.gb`
+
+### Real Game Validation: Tetris
+
+Tetris title screen renders correctly via ASCII framebuffer:
+- Run with: `python run_tetris.py`
+- ~12M T-cycles (~3s GB time) reaches the title screen with TETRIS logo, menu options, and copyright
+- LCDC=0xD3 (LCD on, BG on, sprites on, window on)
+
+Two bugs were found and fixed during Tetris integration:
+1. **VRAM/OAM access restrictions**: Must only apply when LCD is enabled (LCDC bit 7 = 1). When LCD is off, VRAM/OAM are freely accessible. Without this fix, games that disable LCD to write VRAM (standard practice) would have writes silently dropped if the PPU happened to be in mode 3 when LCD was turned off.
+2. **Joypad register (0xFF00)**: Reading must return 0xCF (no buttons pressed) instead of 0x00 (which the game interprets as "all buttons pressed"). A **temporary hack** was added inline in `gb_memory.py` `get_value()` — this is NOT a proper implementation. A full Joypad class needs to be built (same pattern as Timer/Serial/PPU) with button state tracking, select-line multiplexing (bits 4-5 select d-pad vs buttons), joypad interrupt (IF bit 4), and REST API integration for external input. This is a prerequisite for actually playing games.
 
 ## Interrupt System Implementation Plan
 
@@ -536,6 +547,7 @@ The Game Boy interrupt system is being implemented in multiple phases:
 ### ✅ Phase 8: VRAM/OAM Access Restrictions (COMPLETED)
 - VRAM (0x8000-0x9FFF): reads return 0xFF during mode 3, writes silently dropped
 - OAM (0xFE00-0xFE9F): reads return 0xFF during modes 2/3, writes silently dropped
+- **LCD-disabled bypass**: restrictions only apply when LCDC bit 7 = 1 (LCD on). When LCD is off, VRAM/OAM are freely accessible — games disable LCD to write VRAM safely.
 - Implemented in `gb_memory.py` `get_value()`/`set_value()` — only affects CPU-initiated access
 - PPU internal rendering reads from `self._memory.memory[]` (raw array), unaffected by restrictions
 - 10 new tests (VRAM read/write per mode, OAM read/write per mode, no-PPU fallback)
