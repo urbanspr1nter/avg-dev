@@ -97,6 +97,13 @@ class Memory:
         if address <= 0x7FFF and self._cartridge is not None:
             return self._cartridge.read(address)
 
+        # VRAM/OAM access restrictions by PPU mode
+        if self._ppu is not None:
+            if 0x8000 <= address <= 0x9FFF and self._ppu._mode == 3:
+                return 0xFF
+            if 0xFE00 <= address <= 0xFE9F and self._ppu._mode in (2, 3):
+                return 0xFF
+
         # I/O register dispatch
         if 0xFF01 <= address <= 0xFF02 and self._serial is not None:
             return self._serial.read(address)
@@ -128,6 +135,13 @@ class Memory:
         if address <= 0x7FFF and self._cartridge is not None:
             self._cartridge.write(address, value)
             return
+
+        # VRAM/OAM access restrictions by PPU mode
+        if self._ppu is not None:
+            if 0x8000 <= address <= 0x9FFF and self._ppu._mode == 3:
+                return
+            if 0xFE00 <= address <= 0xFE9F and self._ppu._mode in (2, 3):
+                return
 
         # I/O register dispatch
         if 0xFF01 <= address <= 0xFF02 and self._serial is not None:

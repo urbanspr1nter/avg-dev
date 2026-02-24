@@ -740,5 +740,521 @@ class TestPPUWindowRendering(_RenderTestBase):
                          "window should use signed tile data addressing")
 
 
+class TestPPUSpriteRendering(_RenderTestBase):
+    """Sprite (OBJ) layer rendering."""
+
+    def setUp(self):
+        super().setUp()
+        # Identity palette for BG
+        self.ppu._bgp = 0xE4
+        # Identity palettes for sprites
+        self.ppu._obp0 = 0xE4
+        self.ppu._obp1 = 0xE4
+        # Enable sprites: LCDC bit 1
+        self.ppu._lcdc |= 0x02  # 0x93
+
+    def _write_sprite(self, index, y, x, tile, attrs=0):
+        """Write a 4-byte OAM entry at the given sprite index (0-39)."""
+        base = 0xFE00 + index * 4
+        self.memory.memory[base] = y
+        self.memory.memory[base + 1] = x
+        self.memory.memory[base + 2] = tile
+        self.memory.memory[base + 3] = attrs
+
+    def test_sprites_disabled_by_lcdc_bit1(self):
+        """When LCDC bit 1 = 0, sprites are not drawn."""
+        self.ppu._lcdc &= ~0x02  # clear bit 1
+        # Solid sprite tile at index 1
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        self._write_sprite(0, y=16, x=8, tile=1)  # screen pos (0, 0)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            self.assertEqual(fb[0][px], 0, f"pixel {px} should be BG (shade 0)")
+
+    def test_basic_sprite_8x8(self):
+        """Single 8x8 sprite renders correct pixels."""
+        # Tile 1: all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        self._write_sprite(0, y=16, x=8, tile=1)  # screen (0, 0)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            self.assertEqual(fb[0][px], 3, f"pixel {px}")
+        # Pixel 8 should be BG (shade 0)
+        self.assertEqual(fb[0][8], 0)
+
+    def test_sprite_transparency(self):
+        """Color 0 pixels in sprite show BG underneath."""
+        # BG tile 0: all color 1 → shade 1
+        self._write_tile(0x8000, [(0xFF, 0x00)] * 8)
+        self._set_tile_map_entry(0, 0, 0)
+        # Sprite tile 1: alternating — lo=0xAA (10101010), hi=0x00 → colors 0,1,0,1...
+        self._write_tile(0x8010, [(0xAA, 0x00)] * 8)
+        self._write_sprite(0, y=16, x=8, tile=1)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(8):
+            if px % 2 == 0:
+                # Sprite color 1 → shade 1
+                self.assertEqual(fb[0][px], 1, f"pixel {px} sprite")
+            else:
+                # Sprite color 0 (transparent) → BG color 1 → shade 1
+                self.assertEqual(fb[0][px], 1, f"pixel {px} BG shows through")
+
+    def test_sprite_palette_obp0_obp1(self):
+        """Attr bit 4 selects OBP0 vs OBP1."""
+        # OBP0: color 3 → shade 1.  0x54 = 01_01_01_00
+        self.ppu._obp0 = 0x54
+        # OBP1: color 3 → shade 2.  0xA4 = 10_10_01_00
+        self.ppu._obp1 = 0xA4
+        # Tile 1: all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+
+        # Sprite using OBP0 (attr bit 4 = 0)
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x00)
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 1)
+
+        # Sprite using OBP1 (attr bit 4 = 1)
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x10)
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 2)
+
+    def test_sprite_x_flip(self):
+        """Attr bit 5 mirrors tile horizontally."""
+        # Tile 1 row 0: lo=0x80 (10000000), hi=0x00 → pixel 0=color 1, rest=0
+        self._write_tile(0x8010, [(0x80, 0x00)] * 8)
+
+        # No flip: pixel 0 = shade 1, pixel 7 = shade 0
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x00)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        self.assertEqual(fb[0][0], 1)
+        self.assertEqual(fb[0][7], 0)
+
+        # X-flip: pixel 0 = shade 0, pixel 7 = shade 1
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x20)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        self.assertEqual(fb[0][0], 0)
+        self.assertEqual(fb[0][7], 1)
+
+    def test_sprite_y_flip(self):
+        """Attr bit 6 mirrors tile vertically."""
+        # Tile 1: row 0 = color 3, rows 1-7 = color 0
+        rows = [(0xFF, 0xFF)] + [(0x00, 0x00)] * 7
+        self._write_tile(0x8010, rows)
+
+        # No flip: LY=0 → row 0 → shade 3
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x00)
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3)
+
+        # No flip: LY=7 → row 7 → shade 0 (BG)
+        self._render_scanline(7)
+        self.assertEqual(self.ppu.get_framebuffer()[7][0], 0)
+
+        # Y-flip: LY=0 → reads row 7 (color 0, transparent) → BG shade 0
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x40)
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 0)
+
+        # Y-flip: LY=7 → reads row 0 (color 3) → shade 3
+        self._render_scanline(7)
+        self.assertEqual(self.ppu.get_framebuffer()[7][0], 3)
+
+    def test_sprite_8x16_mode(self):
+        """LCDC bit 2 enables 8x16 sprites; tile index bit 0 masked."""
+        self.ppu._lcdc |= 0x04  # 8x16 mode
+        # Top tile (index 0): all color 1
+        self._write_tile(0x8000, [(0xFF, 0x00)] * 8)
+        # Bottom tile (index 1): all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # Sprite with tile index 1 → masked to 0 (top=0, bottom=1)
+        self._write_sprite(0, y=16, x=8, tile=1)
+        # LY=0 → top tile → color 1 → shade 1
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 1)
+        # LY=8 → bottom tile → color 3 → shade 3
+        self._render_scanline(8)
+        self.assertEqual(self.ppu.get_framebuffer()[8][0], 3)
+
+    def test_sprite_8x16_y_flip(self):
+        """8x16 mode with Y-flip swaps top and bottom tiles."""
+        self.ppu._lcdc |= 0x04  # 8x16 mode
+        # Top tile (index 0): all color 1
+        self._write_tile(0x8000, [(0xFF, 0x00)] * 8)
+        # Bottom tile (index 1): all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # Sprite with Y-flip
+        self._write_sprite(0, y=16, x=8, tile=0, attrs=0x40)
+        # LY=0 with Y-flip → row_in_sprite=15, flipped → reads bottom tile row 7 → color 3
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3)
+        # LY=8 with Y-flip → row_in_sprite=8, flipped to 7 → reads top tile row 7 → color 1
+        self._render_scanline(8)
+        self.assertEqual(self.ppu.get_framebuffer()[8][0], 1)
+
+    def test_sprite_bg_priority(self):
+        """Attr bit 7: sprite hidden behind non-zero BG color."""
+        # BG tile 0: all color 2 → shade 2
+        self._write_tile(0x8000, [(0x00, 0xFF)] * 8)
+        self._set_tile_map_entry(0, 0, 0)
+        # Sprite tile 1: all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+
+        # Without BG priority → sprite wins
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x00)
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3)
+
+        # With BG priority (bit 7) → BG color 2 (non-zero) hides sprite
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x80)
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 2)
+
+    def test_sprite_bg_priority_bg_color_zero(self):
+        """BG priority sprite is visible where BG color index is 0."""
+        # BG tile 0: all color 0
+        self._write_tile(0x8000, [(0x00, 0x00)] * 8)
+        self._set_tile_map_entry(0, 0, 0)
+        # Sprite tile 1: all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # BG priority set, but BG color is 0 → sprite visible
+        self._write_sprite(0, y=16, x=8, tile=1, attrs=0x80)
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3)
+
+    def test_sprite_10_per_scanline_limit(self):
+        """Only first 10 sprites on a scanline are drawn; 11th is dropped."""
+        # Tile 1: all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # Place 11 sprites on LY=0, each at different X
+        for i in range(11):
+            self._write_sprite(i, y=16, x=8 + i * 8, tile=1)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        # Sprites 0-9 (X pixels 0-79) should be drawn
+        for px in range(80):
+            self.assertEqual(fb[0][px], 3, f"pixel {px} should be sprite")
+        # Sprite 10 (X pixels 80-87) should NOT be drawn
+        for px in range(80, 88):
+            self.assertEqual(fb[0][px], 0, f"pixel {px} should be BG (11th sprite dropped)")
+
+    def test_sprite_priority_lower_x_wins(self):
+        """Overlapping sprites: lower X has higher priority."""
+        # Tile 1: all color 1 (shade 1)
+        self._write_tile(0x8010, [(0xFF, 0x00)] * 8)
+        # Tile 2: all color 3 (shade 3)
+        self._write_tile(0x8020, [(0xFF, 0xFF)] * 8)
+        # Sprite 0 (OAM 0) at X=12 (overlaps pixels 4-11), tile 2 (shade 3)
+        self._write_sprite(0, y=16, x=12, tile=2)
+        # Sprite 1 (OAM 1) at X=8 (overlaps pixels 0-7), tile 1 (shade 1)
+        self._write_sprite(1, y=16, x=8, tile=1)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        # Pixels 4-7 overlap: sprite 1 (X=8, lower) wins → shade 1
+        for px in range(4, 8):
+            self.assertEqual(fb[0][px], 1, f"pixel {px}: lower X wins")
+        # Pixels 8-11: only sprite 0 → shade 3
+        for px in range(8, 12):
+            self.assertEqual(fb[0][px], 3, f"pixel {px}: only higher X sprite")
+
+    def test_sprite_priority_same_x_lower_oam_wins(self):
+        """Same X position: lower OAM index has priority."""
+        # Tile 1: all color 1 (shade 1)
+        self._write_tile(0x8010, [(0xFF, 0x00)] * 8)
+        # Tile 2: all color 3 (shade 3)
+        self._write_tile(0x8020, [(0xFF, 0xFF)] * 8)
+        # OAM 0 at X=8, tile 1 (shade 1) — lower OAM index
+        self._write_sprite(0, y=16, x=8, tile=1)
+        # OAM 5 at X=8, tile 2 (shade 3) — higher OAM index
+        self._write_sprite(5, y=16, x=8, tile=2)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        # Lower OAM index (0) wins
+        for px in range(8):
+            self.assertEqual(fb[0][px], 1, f"pixel {px}: lower OAM wins")
+
+    def test_sprite_offscreen_clipping(self):
+        """Sprites partially off-screen are clipped, not skipped."""
+        # Tile 1: all color 3
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # Sprite at X=4 → screen X = -4, pixels 0-3 visible (cols 4-7 of tile)
+        self._write_sprite(0, y=16, x=4, tile=1)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(4):
+            self.assertEqual(fb[0][px], 3, f"pixel {px} should show clipped sprite")
+        # Right edge: sprite at X=161 → screen X=153, pixels 153-159 visible, cols 7+ clipped
+        self._write_sprite(1, y=16, x=161, tile=1)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        for px in range(153, 160):
+            self.assertEqual(fb[0][px], 3, f"pixel {px}")
+
+
+class TestPPUSTATInterrupts(unittest.TestCase):
+    """STAT interrupt (IF bit 1) fires on rising edge of enabled conditions."""
+
+    def setUp(self):
+        self.memory = Memory()
+        self.ppu = PPU()
+        self.memory.load_ppu(self.ppu)
+        self.memory.memory[0xFF0F] = 0x00  # Clear IF
+
+    def _get_stat_irq(self):
+        """Return IF bit 1 (STAT interrupt pending)."""
+        return self.memory.memory[0xFF0F] & 0x02
+
+    def _clear_if(self):
+        self.memory.memory[0xFF0F] = 0x00
+
+    def test_mode0_hblank_stat_interrupt(self):
+        """STAT bit 3 set: entering H-Blank fires STAT interrupt."""
+        self.ppu.write(0xFF41, 0x08)  # bit 3 = mode 0 select
+        self.ppu.tick(252)  # reach mode 0
+        self.assertTrue(self._get_stat_irq())
+
+    def test_mode1_vblank_stat_interrupt(self):
+        """STAT bit 4 set: entering V-Blank fires STAT interrupt."""
+        self.ppu.write(0xFF41, 0x10)  # bit 4 = mode 1 select
+        self.ppu.tick(144 * 456)  # reach LY=144, mode 1
+        self.assertTrue(self._get_stat_irq())
+
+    def test_mode2_oam_stat_interrupt(self):
+        """STAT bit 5 set: entering OAM Scan fires STAT interrupt."""
+        self.ppu.write(0xFF41, 0x20)  # bit 5 = mode 2 select
+        # PPU starts in mode 2 at LY=0. The initial state has _stat_irq_line=False,
+        # so the first _set_mode(2) call should trigger. Tick to next scanline.
+        self._clear_if()
+        self.ppu.tick(456)  # complete scanline 0, enter mode 2 at LY=1
+        self.assertTrue(self._get_stat_irq())
+
+    def test_lyc_stat_interrupt(self):
+        """STAT bit 6 set: LY==LYC match fires STAT interrupt."""
+        self.ppu.write(0xFF41, 0x40)  # bit 6 = LYC select
+        self.ppu._lyc = 3
+        self.ppu.tick(3 * 456)  # LY reaches 3
+        self.assertTrue(self._get_stat_irq())
+
+    def test_stat_interrupt_not_fired_when_disabled(self):
+        """No STAT interrupt fires when bits 3-6 are all clear."""
+        self.ppu.write(0xFF41, 0x00)  # all selects off
+        self.ppu.tick(252)  # mode 0
+        self.assertFalse(self._get_stat_irq())
+        self.ppu.tick(204)  # mode 2
+        self.assertFalse(self._get_stat_irq())
+        self.ppu.tick(143 * 456)  # mode 1 (V-Blank)
+        self.assertFalse(self._get_stat_irq())
+
+    def test_mode0_stat_not_fired_without_bit3(self):
+        """Only bit 4 set: entering mode 0 does NOT fire STAT interrupt."""
+        self.ppu.write(0xFF41, 0x10)  # only V-Blank select
+        self.ppu.tick(252)  # enter mode 0
+        self.assertFalse(self._get_stat_irq())
+
+    def test_lyc_stat_not_fired_without_bit6(self):
+        """LYC match without bit 6 set does not fire STAT interrupt."""
+        self.ppu.write(0xFF41, 0x08)  # only mode 0 select
+        self.ppu._lyc = 1
+        self._clear_if()
+        # Tick past mode 0 on scanline 0 (will fire mode 0 interrupt), then clear
+        self.ppu.tick(456)  # LY becomes 1 = LYC, but bit 6 not set
+        self._clear_if()
+        # We're now in mode 2 at LY=1. The LYC flag is set but bit 6 is not enabled.
+        # Tick through to mode 3 — no STAT interrupt should fire from LYC.
+        self.ppu.tick(80)  # mode 3
+        self.assertFalse(self._get_stat_irq())
+
+    def test_rising_edge_no_duplicate(self):
+        """Mode 2 + LYC match on same scanline: only one interrupt fires."""
+        self.ppu.write(0xFF41, 0x60)  # bits 5+6: mode 2 select + LYC select
+        self.ppu._lyc = 1
+        self._clear_if()
+        self.ppu.tick(456)  # LY becomes 1, enter mode 2 AND LYC match
+        # Only one STAT interrupt should have fired (rising edge)
+        self.assertTrue(self._get_stat_irq())
+        # Clear IF and verify no additional interrupt fires from the same state
+        self._clear_if()
+        self.ppu.tick(1)  # one more dot, still in mode 2 with LYC match
+        self.assertFalse(self._get_stat_irq())
+
+    def test_stat_irq_line_stays_high(self):
+        """If line is already high from mode 2, LYC match doesn't re-trigger."""
+        # Enable mode 2 interrupt only first
+        self.ppu.write(0xFF41, 0x20)  # bit 5: mode 2 select
+        self.ppu._lyc = 1
+        self._clear_if()
+        self.ppu.tick(456)  # enter mode 2 at LY=1 → fires
+        self.assertTrue(self._get_stat_irq())
+        self._clear_if()
+        # Now also enable LYC select — line is already high from mode 2
+        self.ppu.write(0xFF41, 0x60)  # bits 5+6
+        # Still in mode 2 with LYC match — line was already high, no new interrupt
+        self.assertFalse(self._get_stat_irq())
+
+    def test_stat_interrupt_each_hblank(self):
+        """STAT interrupt fires on each H-Blank entry across scanlines."""
+        self.ppu.write(0xFF41, 0x08)  # bit 3: mode 0 select
+        for ly in range(3):
+            self._clear_if()
+            # Tick to mode 0 on this scanline
+            if ly == 0:
+                self.ppu.tick(252)  # first scanline: 252 dots to mode 0
+            else:
+                self.ppu.tick(456 - 252)  # finish previous scanline
+                self._clear_if()
+                self.ppu.tick(252)  # next scanline to mode 0
+            self.assertTrue(self._get_stat_irq(),
+                            f"STAT interrupt should fire at H-Blank on scanline {ly}")
+
+    def test_stat_interrupt_coexists_with_vblank(self):
+        """Mode 1 STAT interrupt fires alongside V-Blank interrupt at LY=144."""
+        self.ppu.write(0xFF41, 0x10)  # bit 4: mode 1 select
+        self.ppu.tick(144 * 456)
+        # Both IF bit 0 (V-Blank) and IF bit 1 (STAT) should be set
+        self.assertTrue(self.memory.memory[0xFF0F] & 0x01, "V-Blank IF bit")
+        self.assertTrue(self.memory.memory[0xFF0F] & 0x02, "STAT IF bit")
+
+    def test_lyc_interrupt_at_ly0(self):
+        """LYC=0: STAT interrupt fires when LY wraps back to 0."""
+        self.ppu.write(0xFF41, 0x40)  # bit 6: LYC select
+        self.ppu._lyc = 0
+        # LY starts at 0 and LYC=0, but _stat_irq_line starts False.
+        # The first _update_lyc_flag with mode transition should catch it.
+        # Tick a full frame so LY wraps to 0.
+        self._clear_if()
+        self.ppu.tick(154 * 456)  # full frame, LY back to 0
+        self.assertTrue(self._get_stat_irq())
+
+
+class TestOAMDMA(unittest.TestCase):
+    """OAM DMA transfer triggered by writing to 0xFF46."""
+
+    def setUp(self):
+        self.memory = Memory()
+        self.ppu = PPU()
+        self.memory.load_ppu(self.ppu)
+
+    def test_dma_copies_160_bytes(self):
+        """Writing 0xC0 to DMA copies 160 bytes from 0xC000 to OAM."""
+        for i in range(160):
+            self.memory.memory[0xC000 + i] = i & 0xFF
+        self.ppu.write(0xFF46, 0xC0)
+        for i in range(160):
+            self.assertEqual(self.memory.memory[0xFE00 + i], i & 0xFF,
+                             f"OAM byte {i}")
+
+    def test_dma_from_different_source(self):
+        """DMA copies from source_page * 0x100."""
+        for i in range(160):
+            self.memory.memory[0xD000 + i] = (0x80 + i) & 0xFF
+        self.ppu.write(0xFF46, 0xD0)
+        for i in range(160):
+            self.assertEqual(self.memory.memory[0xFE00 + i], (0x80 + i) & 0xFF,
+                             f"OAM byte {i}")
+
+    def test_dma_register_readable(self):
+        """DMA register reads back the written value."""
+        self.ppu.write(0xFF46, 0xC0)
+        self.assertEqual(self.ppu.read(0xFF46), 0xC0)
+
+    def test_dma_preserves_oam_beyond_160(self):
+        """DMA only copies 160 bytes; 0xFEA0+ unchanged."""
+        self.memory.memory[0xFEA0] = 0x42
+        self.ppu.write(0xFF46, 0xC0)
+        self.assertEqual(self.memory.memory[0xFEA0], 0x42)
+
+    def test_dma_without_memory_no_crash(self):
+        """PPU without memory wired doesn't crash on DMA."""
+        ppu = PPU()  # no memory
+        ppu.write(0xFF46, 0xC0)  # should not raise
+
+
+class TestVRAMOAMAccessRestrictions(unittest.TestCase):
+    """VRAM/OAM access restrictions based on PPU mode."""
+
+    def setUp(self):
+        self.memory = Memory()
+        self.ppu = PPU()
+        self.memory.load_ppu(self.ppu)
+        # Pre-fill VRAM and OAM with known values
+        self.memory.memory[0x8000] = 0xAB
+        self.memory.memory[0x9FFF] = 0xCD
+        self.memory.memory[0xFE00] = 0x11
+        self.memory.memory[0xFE9F] = 0x22
+
+    def test_vram_read_returns_ff_during_mode3(self):
+        self.ppu._mode = 3
+        self.assertEqual(self.memory.get_value(0x8000), 0xFF)
+        self.assertEqual(self.memory.get_value(0x9FFF), 0xFF)
+
+    def test_vram_read_normal_outside_mode3(self):
+        for mode in (0, 1, 2):
+            self.ppu._mode = mode
+            self.assertEqual(self.memory.get_value(0x8000), 0xAB,
+                             f"mode {mode}")
+            self.assertEqual(self.memory.get_value(0x9FFF), 0xCD,
+                             f"mode {mode}")
+
+    def test_vram_write_ignored_during_mode3(self):
+        self.ppu._mode = 3
+        self.memory.set_value(0x8000, 0xFF)
+        # Verify underlying memory unchanged
+        self.assertEqual(self.memory.memory[0x8000], 0xAB)
+
+    def test_vram_write_normal_outside_mode3(self):
+        for mode in (0, 1, 2):
+            self.ppu._mode = mode
+            self.memory.set_value(0x8000, 0x99)
+            self.assertEqual(self.memory.memory[0x8000], 0x99)
+            self.memory.memory[0x8000] = 0xAB  # restore
+
+    def test_oam_read_returns_ff_during_mode2(self):
+        self.ppu._mode = 2
+        self.assertEqual(self.memory.get_value(0xFE00), 0xFF)
+        self.assertEqual(self.memory.get_value(0xFE9F), 0xFF)
+
+    def test_oam_read_returns_ff_during_mode3(self):
+        self.ppu._mode = 3
+        self.assertEqual(self.memory.get_value(0xFE00), 0xFF)
+        self.assertEqual(self.memory.get_value(0xFE9F), 0xFF)
+
+    def test_oam_read_normal_during_mode0_and_mode1(self):
+        for mode in (0, 1):
+            self.ppu._mode = mode
+            self.assertEqual(self.memory.get_value(0xFE00), 0x11,
+                             f"mode {mode}")
+            self.assertEqual(self.memory.get_value(0xFE9F), 0x22,
+                             f"mode {mode}")
+
+    def test_oam_write_ignored_during_mode2_and_3(self):
+        for mode in (2, 3):
+            self.ppu._mode = mode
+            self.memory.set_value(0xFE00, 0xFF)
+            self.assertEqual(self.memory.memory[0xFE00], 0x11,
+                             f"mode {mode}")
+
+    def test_oam_write_normal_during_mode0_and_mode1(self):
+        for mode in (0, 1):
+            self.ppu._mode = mode
+            self.memory.set_value(0xFE00, 0x99)
+            self.assertEqual(self.memory.memory[0xFE00], 0x99)
+            self.memory.memory[0xFE00] = 0x11  # restore
+
+    def test_restrictions_without_ppu_no_effect(self):
+        """Memory without PPU loaded has no restrictions."""
+        mem = Memory()
+        mem.memory[0x8000] = 0xAB
+        mem.memory[0xFE00] = 0x11
+        # No PPU → reads/writes always work
+        self.assertEqual(mem.get_value(0x8000), 0xAB)
+        self.assertEqual(mem.get_value(0xFE00), 0x11)
+        mem.set_value(0x8000, 0x99)
+        self.assertEqual(mem.memory[0x8000], 0x99)
+
+
 if __name__ == '__main__':
     unittest.main()

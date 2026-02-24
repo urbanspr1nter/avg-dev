@@ -877,7 +877,7 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `tests/memory/test_gb_memory.py` | Memory read/write, echo RAM, address mapping |
 | `tests/cartridge/test_gb_cartridge.py` | Header parsing, ROM access, checksum validation |
 | `tests/cartridge/test_mbc1.py` | MBC1 bank switching: ROM banking, RAM banking, mode select |
-| `tests/ppu/test_ppu.py` | Register defaults/read/write, mode timing, STAT flags, V-Blank interrupt, CPU integration, BG rendering, window rendering, ASCII output |
+| `tests/ppu/test_ppu.py` | Register defaults/read/write, mode timing, STAT flags, V-Blank interrupt, STAT interrupts, CPU integration, BG/window/sprite rendering, OAM DMA, VRAM/OAM access restrictions, ASCII output |
 | `tests/timer/test_gb_timer.py` | DIV counting, TIMA clock rates, overflow/reload, CPU integration |
 | `tests/serial/test_serial.py` | Register access, transfer protocol, memory integration |
 | `tests/test_gameboy.py` | GameBoy initialization wiring, component integration |
@@ -885,13 +885,13 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 ### Running tests
 
 ```bash
-# All tests (587 tests)
+# All tests (628 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
 python -m unittest discover tests/cpu -v
 
-# PPU tests (81 tests)
+# PPU tests (122 tests)
 python -m unittest discover tests/ppu -v
 
 # Cartridge tests (55 tests, includes MBC1 bank switching)
@@ -1015,16 +1015,20 @@ This is the heart of the PPU. It advances the dot counter one T-cycle at a time 
 
 ### Step 4: Read the rendering methods
 
-- `_render_scanline()` — renders BG + window for the current scanline into the framebuffer (called at mode 3→0 transition)
+- `_render_scanline()` — renders BG + window + sprites for the current scanline into the framebuffer (called at mode 3→0 transition)
+- `_render_sprites()` — OAM scan, priority sort, sprite pixel compositing (called from `_render_scanline()`)
 - `_tile_data_address()` — static helper that resolves tile index to VRAM address (unsigned/signed mode)
+- `_dma_transfer()` — copies 160 bytes from source page to OAM (triggered by write to 0xFF46)
 - `get_framebuffer()` — returns the 160×144 framebuffer
 - `render_ascii()` — returns ASCII art visualization of the framebuffer
 
 ### Step 5: Read the internal helpers
 
-- `_set_mode()` — updates `_mode` and STAT bits 0-1
-- `_update_lyc_flag()` — sets/clears STAT bit 2 based on LY==LYC
+- `_set_mode()` — updates `_mode` and STAT bits 0-1, triggers STAT IRQ check
+- `_update_lyc_flag()` — sets/clears STAT bit 2 based on LY==LYC, triggers STAT IRQ check
+- `_update_stat_irq()` — evaluates OR of enabled STAT conditions, fires IF bit 1 on rising edge
 - `_request_vblank_interrupt()` — sets IF bit 0 via direct memory access
+- `_request_stat_interrupt()` — sets IF bit 1 via direct memory access
 
 ## The Mode State Machine
 
@@ -1217,28 +1221,27 @@ Note: pixel 0 (leftmost) uses bit 7 (MSB), pixel 7 (rightmost) uses bit 0 (LSB).
 
 ## What's Implemented vs What's Next
 
-### Implemented
+### Implemented (PPU feature-complete)
 - All 12 PPU registers with correct read/write behavior
 - Mode state machine (modes 0-3 cycling at correct T-cycle thresholds)
 - LY counter (0-153 with wrap)
 - STAT mode bits (0-1) and LYC coincidence flag (bit 2)
 - V-Blank interrupt (IF bit 0)
+- **STAT interrupts** (IF bit 1) — rising-edge detection for mode 0/1/2 transitions and LYC==LY match, controlled by STAT bits 3-6
 - LCD disabled behavior
 - CPU integration (tick called from run loop)
 - **Background rendering** — tile map lookup (LCDC bit 3), 2bpp tile data decoding, SCX/SCY scroll wrapping, BGP palette application, LCDC bit 4 addressing modes (unsigned 0x8000 / signed 0x8800)
 - **Window rendering** — overlay on top of BG, WY/WX positioning (screen X = WX - 7), LCDC bit 5 enable, LCDC bit 6 tile map selection, internal line counter (increments only when window rendered, resets at frame start)
+- **Sprite rendering** — OAM scan (40 entries, 10-per-line limit), 8x8/8x16 modes (LCDC bit 2), OBP0/OBP1 palette selection, X/Y flip, transparency (color 0), BG priority (attr bit 7), sprite priority (lower X wins, OAM index tiebreaker), off-screen clipping
+- **OAM DMA transfer** — writing to 0xFF46 copies 160 bytes from source page to OAM (instant copy)
+- **VRAM/OAM access restrictions** — VRAM returns 0xFF during mode 3, OAM returns 0xFF during modes 2/3; writes silently dropped during restricted modes
 - **Framebuffer** — 160×144 array of shade values (0-3), `get_framebuffer()` accessor, `render_ascii()` ASCII visualization
 - **`GameBoy.get_framebuffer()`** — top-level accessor delegating to PPU
-
-### Not yet implemented
-- **Sprite rendering** — OAM scan, 10-per-line limit, priority, flipping, transparency
-- **STAT interrupts** — mode-change and LYC-match interrupts (IF bit 1)
-- **VRAM/OAM access restrictions** — blocking CPU access during modes 2/3
-- **OAM DMA transfer** — bulk copy triggered by writing to 0xFF46
 
 ## Implementation files
 
 | File | Purpose |
 |------|---------|
-| `src/ppu/ppu.py` | PPU class — registers, mode state machine, V-Blank interrupt, BG/window rendering, framebuffer |
-| `tests/ppu/test_ppu.py` | Register tests (35), mode timing (14), STAT/LYC (5), V-Blank interrupt (4), LCD disabled (2), CPU integration (2), BG rendering (16), window rendering (7) |
+| `src/ppu/ppu.py` | PPU class — registers, mode state machine, interrupts (V-Blank + STAT), BG/window/sprite rendering, OAM DMA, framebuffer |
+| `src/memory/gb_memory.py` | Memory bus — includes VRAM/OAM access restrictions by PPU mode |
+| `tests/ppu/test_ppu.py` | 122 tests: registers (35), mode timing (14), STAT/LYC (5), V-Blank interrupt (4), LCD disabled (2), CPU integration (2), BG rendering (16), window rendering (7), sprite rendering (14), STAT interrupts (12), OAM DMA (5), VRAM/OAM restrictions (10), ASCII output (2) |

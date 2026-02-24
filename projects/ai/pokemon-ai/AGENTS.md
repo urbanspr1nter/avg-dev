@@ -42,10 +42,12 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Mode state machine: cycles through OAM Scan → Pixel Transfer → H-Blank → V-Blank
   - `tick(cycles)` called by CPU run loop after each instruction (same pattern as Timer)
   - Fires V-Blank interrupt (IF bit 0) when entering scanline 144
+  - STAT interrupts (IF bit 1) with rising-edge detection for mode 0/1/2 and LYC match
   - Updates STAT mode bits (0-1) and LYC coincidence flag (bit 2)
   - LCD disabled check: tick() does nothing when LCDC bit 7 = 0
   - Background rendering: tile map lookup, 2bpp tile decoding, SCX/SCY scrolling, BGP palette, LCDC bit 4 addressing
   - Window rendering: overlay via WY/WX, LCDC bit 5 enable, LCDC bit 6 tile map, internal line counter
+  - Sprite rendering: OAM scan (10/line limit), 8x8/8x16 modes, flips, palettes, priority, BG priority, transparency
   - 160×144 framebuffer with `get_framebuffer()` accessor and `render_ascii()` visualization
 
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
@@ -66,8 +68,8 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
 - `tests/cartridge/`: Cartridge and MBC1 bank switching tests (55 tests)
   - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
   - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
-- `tests/ppu/`: PPU tests (81 tests)
-  - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration, BG rendering, tile decoding, scrolling, tile addressing, window rendering, ASCII output
+- `tests/ppu/`: PPU tests (122 tests)
+  - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration, BG rendering, tile decoding, scrolling, tile addressing, window rendering, sprite rendering, STAT interrupts, OAM DMA, VRAM/OAM access restrictions, ASCII output
 
 ## Critical Implementation Notes
 
@@ -340,7 +342,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-587 tests passing as of February 24, 2026.
+628 tests passing as of February 24, 2026.
 
 ### Blargg Test ROM Validation
 
@@ -499,16 +501,41 @@ The Game Boy interrupt system is being implemented in multiple phases:
 - Shares tile data addressing with BG (LCDC bit 4)
 - 7 new tests (enable/disable, overlay, WY offset, line counter, tile map, addressing)
 
-### 📋 Phase 5: Sprite Rendering
-- OAM parsing (40 sprites, 4 bytes each at 0xFE00-0xFE9F)
-- 10 sprites per scanline limit
-- 8x8 and 8x16 sprite modes (LCDC bit 2)
-- OBP0/OBP1 palette selection
-- Sprite priority and transparency (color 0 = transparent)
+### ✅ Phase 5: Sprite Rendering (COMPLETED)
+- `_render_sprites()` called after BG+window in `_render_scanline()`
+- OAM scan: iterate 40 entries (0xFE00-0xFE9F), collect up to 10 sprites overlapping current scanline
+- Sprite position: Y-16 for screen Y, X-8 for screen X
+- 8x8 and 8x16 sprite modes (LCDC bit 2); 8x16 masks tile index bit 0
+- OBP0/OBP1 palette selection (attr bit 4)
+- X-flip (attr bit 5) and Y-flip (attr bit 6); Y-flip in 8x16 swaps top/bottom tiles
+- Color 0 = transparent (BG shows through)
+- BG priority (attr bit 7): sprite hidden behind non-zero BG color index
+- Per-scanline `bg_indices` array tracks BG/window color indices for BG priority
+- Sprite priority: stable sort by X position, lower OAM index wins ties
+- Render in reverse priority order (lowest priority first, highest overwrites)
+- Off-screen clipping (partial sprites at screen edges)
+- 14 new tests (disable, basic, transparency, palettes, flips, 8x16, BG priority, limits, priority, clipping)
 
-### 📋 Phase 6: STAT Interrupts + Access Restrictions
-- STAT interrupt (IF bit 1) on mode transitions and LYC match
-- VRAM/OAM access restrictions by mode
+### ✅ Phase 6: STAT Interrupts (COMPLETED)
+- `_stat_irq_line` boolean for rising-edge detection
+- `_update_stat_irq()` evaluates OR of enabled STAT conditions, fires IF bit 1 on 0→1 transition
+- STAT bit 3: H-Blank (mode 0) interrupt
+- STAT bit 4: V-Blank (mode 1) interrupt
+- STAT bit 5: OAM Scan (mode 2) interrupt
+- STAT bit 6: LYC==LY coincidence interrupt
+- Rising-edge prevents duplicate interrupts when multiple sources active simultaneously
+- Called from `_set_mode()` and `_update_lyc_flag()`
+- 12 new tests (mode 0/1/2 interrupts, LYC, disabled checks, rising edge, coexistence with V-Blank)
 
-### 📋 Phase 7: DMA Transfer
-- OAM DMA (write to 0xFF46 copies 160 bytes to OAM)
+### ✅ Phase 7: OAM DMA Transfer (COMPLETED)
+- `_dma_transfer(source_page)` copies 160 bytes from `source_page * 0x100` to OAM (0xFE00-0xFE9F)
+- Triggered instantly on write to 0xFF46 (simplified — real hardware takes 640 T-cycles)
+- Reads from raw memory array (correct for WRAM sources; cartridge ROM DMA can be enhanced later)
+- 5 new tests (copy, different source, register readback, bounds, no-memory safety)
+
+### ✅ Phase 8: VRAM/OAM Access Restrictions (COMPLETED)
+- VRAM (0x8000-0x9FFF): reads return 0xFF during mode 3, writes silently dropped
+- OAM (0xFE00-0xFE9F): reads return 0xFF during modes 2/3, writes silently dropped
+- Implemented in `gb_memory.py` `get_value()`/`set_value()` — only affects CPU-initiated access
+- PPU internal rendering reads from `self._memory.memory[]` (raw array), unaffected by restrictions
+- 10 new tests (VRAM read/write per mode, OAM read/write per mode, no-PPU fallback)
