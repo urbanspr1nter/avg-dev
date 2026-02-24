@@ -45,6 +45,7 @@ class PPU:
         self._memory = None     # Set by Memory.load_ppu() for IF register access
         # --- Framebuffer ---
         self._framebuffer = [[0] * 160 for _ in range(144)]
+        self._window_line = 0   # Internal window line counter
 
     # ------------------------------------------------------------------ #
     #  Register read
@@ -158,6 +159,7 @@ class PPU:
                     self._ly += 1
                     if self._ly > self.TOTAL_SCANLINES - 1:
                         self._ly = 0
+                        self._window_line = 0
                         self._set_mode(2)
                     self._update_lyc_flag()
 
@@ -184,11 +186,21 @@ class PPU:
             self._memory.memory[0xFF0F] = if_val | 0x01
 
     # ------------------------------------------------------------------ #
-    #  Background rendering
+    #  Background + window rendering
     # ------------------------------------------------------------------ #
 
+    @staticmethod
+    def _tile_data_address(tile_index, unsigned_mode):
+        """Return the VRAM address of a tile given its index and addressing mode."""
+        if unsigned_mode:
+            return 0x8000 + tile_index * 16
+        # Signed addressing: tile_index treated as signed byte
+        if tile_index > 127:
+            tile_index -= 256
+        return 0x9000 + tile_index * 16
+
     def _render_scanline(self) -> None:
-        """Render the current scanline's background into the framebuffer."""
+        """Render the current scanline's background and window into the framebuffer."""
         if self._memory is None:
             return
 
@@ -198,30 +210,22 @@ class PPU:
         lcdc = self._lcdc
         bgp = self._bgp
         mem = self._memory.memory
-
-        # BG tile map base: LCDC bit 3
-        tile_map_base = 0x9C00 if lcdc & 0x08 else 0x9800
-        # Tile data addressing: LCDC bit 4
         unsigned_mode = bool(lcdc & 0x10)
 
+        # --- Background ---
+        bg_map_base = 0x9C00 if lcdc & 0x08 else 0x9800
+
         scroll_y = (ly + scy) & 0xFF
-        tile_row = scroll_y >> 3        # scroll_y // 8
-        row_in_tile = scroll_y & 0x07   # scroll_y % 8
+        tile_row = scroll_y >> 3
+        row_in_tile = scroll_y & 0x07
 
         row = self._framebuffer[ly]
         for px in range(160):
             scroll_x = (px + scx) & 0xFF
-            tile_col = scroll_x >> 3    # scroll_x // 8
+            tile_col = scroll_x >> 3
 
-            tile_index = mem[tile_map_base + tile_row * 32 + tile_col]
-
-            if unsigned_mode:
-                tile_addr = 0x8000 + tile_index * 16
-            else:
-                # Signed addressing: tile_index is treated as signed byte
-                if tile_index > 127:
-                    tile_index -= 256
-                tile_addr = 0x9000 + tile_index * 16
+            tile_index = mem[bg_map_base + tile_row * 32 + tile_col]
+            tile_addr = self._tile_data_address(tile_index, unsigned_mode)
 
             byte_offset = tile_addr + row_in_tile * 2
             low_byte = mem[byte_offset]
@@ -229,8 +233,38 @@ class PPU:
 
             bit_pos = 7 - (scroll_x & 0x07)
             color_index = (((high_byte >> bit_pos) & 1) << 1) | ((low_byte >> bit_pos) & 1)
-            shade = (bgp >> (color_index * 2)) & 0x03
-            row[px] = shade
+            row[px] = (bgp >> (color_index * 2)) & 0x03
+
+        # --- Window ---
+        if not (lcdc & 0x20) or ly < self._wy:
+            return
+
+        win_x_start = self._wx - 7
+        win_map_base = 0x9C00 if lcdc & 0x40 else 0x9800
+        win_y = self._window_line
+        win_tile_row = win_y >> 3
+        win_row_in_tile = win_y & 0x07
+        window_rendered = False
+
+        start_px = max(0, win_x_start)
+        for px in range(start_px, 160):
+            win_px = px - win_x_start
+            win_tile_col = win_px >> 3
+
+            tile_index = mem[win_map_base + win_tile_row * 32 + win_tile_col]
+            tile_addr = self._tile_data_address(tile_index, unsigned_mode)
+
+            byte_offset = tile_addr + win_row_in_tile * 2
+            low_byte = mem[byte_offset]
+            high_byte = mem[byte_offset + 1]
+
+            bit_pos = 7 - (win_px & 0x07)
+            color_index = (((high_byte >> bit_pos) & 1) << 1) | ((low_byte >> bit_pos) & 1)
+            row[px] = (bgp >> (color_index * 2)) & 0x03
+            window_rendered = True
+
+        if window_rendered:
+            self._window_line += 1
 
     # ------------------------------------------------------------------ #
     #  Public accessors

@@ -625,5 +625,120 @@ class TestPPURenderASCII(unittest.TestCase):
         self.assertEqual(first_line[3], "█")
 
 
+class TestPPUWindowRendering(_RenderTestBase):
+    """Window overlay rendering."""
+
+    def setUp(self):
+        super().setUp()
+        # BG tile 0: all shade 0 (blank)
+        self._write_tile(0x8000, [(0x00, 0x00)] * 8)
+        # Window tile 1: all shade 3 (solid)
+        self._write_tile(0x8010, [(0xFF, 0xFF)] * 8)
+        # BG map: all tile 0
+        for r in range(32):
+            for c in range(32):
+                self._set_tile_map_entry(r, c, 0, base=0x9800)
+        # Window map: all tile 1 (at 0x9C00 — LCDC bit 6 default in these tests)
+        for r in range(32):
+            for c in range(32):
+                self._set_tile_map_entry(r, c, 1, base=0x9C00)
+        self.ppu._bgp = 0xE4  # identity palette
+
+    def _enable_window(self, wy=0, wx=7):
+        """Enable window with LCDC bit 5 and bit 6 (map at 0x9C00)."""
+        # bit 7=LCD on, bit 5=window on, bit 6=window map 0x9C00, bit 4=unsigned, bit 0=BG on
+        self.ppu._lcdc = 0xF1  # 1111_0001
+        self.ppu._wy = wy
+        self.ppu._wx = wx
+
+    def test_window_disabled_by_lcdc_bit5(self):
+        # LCDC bit 5 = 0, window should not render
+        self.ppu._lcdc = 0x91  # bit 5 clear
+        self.ppu._wy = 0
+        self.ppu._wx = 7
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        # All pixels should be shade 0 (BG only)
+        for px in range(160):
+            self.assertEqual(fb[0][px], 0, f"pixel {px}")
+
+    def test_window_basic_overlay(self):
+        # WY=0, WX=7 → window covers entire screen
+        self._enable_window(wy=0, wx=7)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        # All pixels should be shade 3 (window tile)
+        for px in range(160):
+            self.assertEqual(fb[0][px], 3, f"pixel {px}")
+
+    def test_window_partial_overlay(self):
+        # WX=87 → window starts at pixel 80
+        self._enable_window(wy=0, wx=87)
+        self._render_scanline(0)
+        fb = self.ppu.get_framebuffer()
+        # Pixels 0-79: BG (shade 0)
+        for px in range(80):
+            self.assertEqual(fb[0][px], 0, f"pixel {px}")
+        # Pixels 80-159: window (shade 3)
+        for px in range(80, 160):
+            self.assertEqual(fb[0][px], 3, f"pixel {px}")
+
+    def test_window_wy_offset(self):
+        # WY=4 → scanlines 0-3 show BG, scanline 4 shows window
+        self._enable_window(wy=4, wx=7)
+        for ly in range(4):
+            self._render_scanline(ly)
+            self.assertEqual(self.ppu.get_framebuffer()[ly][0], 0,
+                             f"scanline {ly} should be BG")
+        self._render_scanline(4)
+        self.assertEqual(self.ppu.get_framebuffer()[4][0], 3,
+                         "scanline 4 should be window")
+
+    def test_window_line_counter_increments(self):
+        # Window tile 2 at 0x8020: all shade 1 (lo=0xFF, hi=0x00 → color 1)
+        self._write_tile(0x8020, [(0xFF, 0x00)] * 8)
+        # Window map row 0 = tile 1 (shade 3), row 1 = tile 2 (shade 1)
+        for c in range(32):
+            self._set_tile_map_entry(0, c, 1, base=0x9C00)
+            self._set_tile_map_entry(1, c, 2, base=0x9C00)
+        self._enable_window(wy=0, wx=7)
+
+        # Render 8 scanlines (tile row 0), then scanline 8 (tile row 1)
+        for ly in range(8):
+            self._render_scanline(ly)
+            self.assertEqual(self.ppu.get_framebuffer()[ly][0], 3,
+                             f"scanline {ly} should be shade 3 (tile row 0)")
+        self._render_scanline(8)
+        self.assertEqual(self.ppu.get_framebuffer()[8][0], 1,
+                         "scanline 8 should be shade 1 (tile row 1)")
+
+    def test_window_tile_map_lcdc_bit6(self):
+        # Put different tile in 0x9800 window map
+        # Window tile 2: all shade 1
+        self._write_tile(0x8020, [(0xFF, 0x00)] * 8)
+        for c in range(32):
+            self._set_tile_map_entry(0, c, 2, base=0x9800)
+        # LCDC bit 6 = 0 → window reads from 0x9800
+        self.ppu._lcdc = 0xB1  # 1011_0001 (bit 6 clear, bit 5 set)
+        self.ppu._wy = 0
+        self.ppu._wx = 7
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 1,
+                         "should read tile 2 (shade 1) from 0x9800 map")
+
+    def test_window_uses_same_tile_data_addressing(self):
+        # Signed mode (LCDC bit 4 = 0): tile index 0 → 0x9000
+        self._write_tile(0x9000, [(0xFF, 0xFF)] * 8)
+        for c in range(32):
+            self._set_tile_map_entry(0, c, 0, base=0x9C00)
+        # LCDC: LCD on, window on, window map 0x9C00, bit 4 clear (signed)
+        self.ppu._lcdc = 0xE1  # 1110_0001
+        self.ppu._wy = 0
+        self.ppu._wx = 7
+        self._render_scanline(0)
+        self.assertEqual(self.ppu.get_framebuffer()[0][0], 3,
+                         "window should use signed tile data addressing")
+
+
 if __name__ == '__main__':
     unittest.main()

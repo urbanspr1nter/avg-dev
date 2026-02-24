@@ -44,6 +44,9 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Fires V-Blank interrupt (IF bit 0) when entering scanline 144
   - Updates STAT mode bits (0-1) and LYC coincidence flag (bit 2)
   - LCD disabled check: tick() does nothing when LCDC bit 7 = 0
+  - Background rendering: tile map lookup, 2bpp tile decoding, SCX/SCY scrolling, BGP palette, LCDC bit 4 addressing
+  - Window rendering: overlay via WY/WX, LCDC bit 5 enable, LCDC bit 6 tile map, internal line counter
+  - 160×144 framebuffer with `get_framebuffer()` accessor and `render_ascii()` visualization
 
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
@@ -63,8 +66,8 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
 - `tests/cartridge/`: Cartridge and MBC1 bank switching tests (55 tests)
   - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
   - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
-- `tests/ppu/`: PPU tests (61 tests)
-  - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration
+- `tests/ppu/`: PPU tests (81 tests)
+  - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration, BG rendering, tile decoding, scrolling, tile addressing, window rendering, ASCII output
 
 ## Critical Implementation Notes
 
@@ -337,7 +340,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-567 tests passing as of February 24, 2026.
+587 tests passing as of February 24, 2026.
 
 ### Blargg Test ROM Validation
 
@@ -474,17 +477,27 @@ The Game Boy interrupt system is being implemented in multiple phases:
 - CPU integration: `ppu.tick()` called from run loop (HALT idle + post-instruction)
 - 26 mode state machine tests
 
-### 📋 Phase 3: Background Rendering
-- Tile data decoding from VRAM (0x8000-0x97FF)
-- Tile map reading (0x9800-0x9BFF or 0x9C00-0x9FFF based on LCDC bit 3)
-- LCDC bit 4: tile data addressing mode (0x8000 unsigned vs 0x8800 signed)
-- SCY/SCX scroll support (background wraps at 256x256)
+### ✅ Phase 3: Background Rendering (COMPLETED)
+- 160×144 framebuffer (list of lists, shade values 0-3) with `get_framebuffer()` accessor
+- `_render_scanline()` called at mode 3→0 transition (dot 252) renders BG into framebuffer
+- Tile data decoding: 2 bytes per row → 8 pixels of 2-bit color indices
+- Tile map lookup with SCY/SCX scroll wrapping (256×256 BG map)
+- LCDC bit 3: BG tile map selection (0x9800 or 0x9C00)
+- LCDC bit 4: tile data addressing mode (unsigned 0x8000 vs signed 0x8800)
 - BGP palette application (2-bit color indices → 4 shades of gray)
-- Framebuffer output (160x144 array of shade values)
+- `_tile_data_address()` static helper shared by BG and window
+- `render_ascii()` ASCII visualization (shades: ` ░▒█`)
+- `GameBoy.get_framebuffer()` accessor
+- 16 new tests (framebuffer, tile decoding, scrolling, addressing, ASCII output)
 
-### 📋 Phase 4: Window Rendering
-- Window overlay (WY/WX position, LCDC bit 5 enable)
-- Window tile map area (LCDC bit 6)
+### ✅ Phase 4: Window Rendering (COMPLETED)
+- Window overlay in `_render_scanline()` renders on top of BG pixels
+- LCDC bit 5: window enable/disable
+- LCDC bit 6: window tile map selection (0x9800 or 0x9C00)
+- WY/WX position registers (window screen X = WX - 7)
+- Internal `_window_line` counter: increments only on scanlines where window rendered, resets at frame start
+- Shares tile data addressing with BG (LCDC bit 4)
+- 7 new tests (enable/disable, overlay, WY offset, line counter, tile map, addressing)
 
 ### 📋 Phase 5: Sprite Rendering
 - OAM parsing (40 sprites, 4 bytes each at 0xFE00-0xFE9F)
