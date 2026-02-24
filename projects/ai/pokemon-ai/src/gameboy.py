@@ -2,6 +2,7 @@ from src.memory.gb_memory import Memory
 from src.cpu.gb_cpu import CPU
 from src.timer.gb_timer import Timer
 from src.serial.serial import Serial
+from src.ppu.ppu import PPU
 from src.cartridge.gb_cartridge import Cartridge
 
 
@@ -58,6 +59,10 @@ class GameBoy:
         # Step 4: Serial — load_serial() wires memory._serial (I/O dispatch).
         self.serial = Serial()
         self.memory.load_serial(self.serial)
+
+        # Step 5: PPU — load_ppu() wires memory._ppu (I/O dispatch for 0xFF40-0xFF4B).
+        self.ppu = PPU()
+        self.memory.load_ppu(self.ppu)
 
         # Cartridge is not loaded here — call load_cartridge() with a ROM path.
         self.cartridge = None
