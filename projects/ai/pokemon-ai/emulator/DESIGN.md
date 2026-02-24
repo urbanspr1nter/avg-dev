@@ -201,7 +201,8 @@ The order matters because components have cross-references:
 | 2 | Create CPU | Constructor sets `memory._cpu` for interrupt register dispatch (IF/IE) |
 | 3 | load_timer() | Needs Memory (for IF writes) AND CPU (for tick reference). Wires three cross-references. |
 | 4 | load_serial() | Needs Memory for I/O dispatch. No other cross-references. |
-| 5 | load_cartridge() | Optional, at runtime. Only affects Memory read/write for ROM range. |
+| 5 | load_ppu() | Needs Memory (for IF writes on V-Blank) AND CPU (for tick reference). Same pattern as Timer. |
+| 6 | load_cartridge() | Optional, at runtime. Only affects Memory read/write for ROM range. |
 
 ### Usage
 
@@ -218,7 +219,7 @@ print(gb.get_serial_output())  # Read test ROM results
 
 | File | Purpose |
 |------|---------|
-| `src/gameboy.py` | GameBoy class — owns and wires Memory, CPU, Timer, Serial, Cartridge |
+| `src/gameboy.py` | GameBoy class — owns and wires Memory, CPU, Timer, Serial, PPU, Cartridge |
 | `tests/test_gameboy.py` | Initialization wiring, timer/serial/cartridge integration through GameBoy |
 
 # CPU Implementation Deep Dive
@@ -849,6 +850,7 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `src/cpu/handlers/stack_handlers.py` | PUSH, POP |
 | `src/memory/gb_memory.py` | Memory bus with I/O register dispatch (serial, timer, cartridge) |
 | `src/cartridge/gb_cartridge.py` | Cartridge class — ROM loading, header parsing, MBC1 bank switching |
+| `src/ppu/ppu.py` | PPU — registers, mode state machine, V-Blank interrupt, LYC coincidence |
 | `src/timer/gb_timer.py` | Timer subsystem — internal counter, TIMA, DIV, interrupt firing |
 | `src/serial/serial.py` | Serial port — SB/SC registers, Blargg output capture |
 | `src/gameboy.py` | GameBoy class — system bootstrap, owns all components |
@@ -875,6 +877,7 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `tests/memory/test_gb_memory.py` | Memory read/write, echo RAM, address mapping |
 | `tests/cartridge/test_gb_cartridge.py` | Header parsing, ROM access, checksum validation |
 | `tests/cartridge/test_mbc1.py` | MBC1 bank switching: ROM banking, RAM banking, mode select |
+| `tests/ppu/test_ppu.py` | Register defaults/read/write, mode timing, STAT flags, V-Blank interrupt, CPU integration |
 | `tests/timer/test_gb_timer.py` | DIV counting, TIMA clock rates, overflow/reload, CPU integration |
 | `tests/serial/test_serial.py` | Register access, transfer protocol, memory integration |
 | `tests/test_gameboy.py` | GameBoy initialization wiring, component integration |
@@ -882,11 +885,14 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 ### Running tests
 
 ```bash
-# All tests (506 tests)
+# All tests (567 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
 python -m unittest discover tests/cpu -v
+
+# PPU tests (61 tests)
+python -m unittest discover tests/ppu -v
 
 # Cartridge tests (55 tests, includes MBC1 bank switching)
 python -m unittest discover tests/cartridge -v
@@ -932,3 +938,295 @@ python run_blargg.py rom/instr_timing.gb
 | cpu_instrs | 10: bit ops | Passed |
 | cpu_instrs | 11: op a,(hl) | Passed |
 | instr_timing | (single test) | Passed |
+
+# PPU Implementation Deep Dive
+
+This section is the comprehensive guide for the PPU codebase — the same kind of "onboarding to development" guide that exists above for the CPU. It explains what the PPU does, how the code is organized, how it connects to the rest of the system, and how to extend it.
+
+## What the PPU Does
+
+The PPU (Pixel Processing Unit) renders the Game Boy's 160x144 pixel display. It runs in parallel with the CPU, drawing the screen one scanline at a time, 59.73 times per second. The CPU and PPU communicate through shared memory (VRAM, OAM) and memory-mapped registers (0xFF40-0xFF4B).
+
+The PPU has three rendering layers that are composited for each pixel:
+1. **Background** — a scrollable 256x256 tile map (only 160x144 visible at a time)
+2. **Window** — a fixed overlay that draws on top of the background (used for HUDs, menus)
+3. **Sprites** (Objects) — individually positioned 8x8 or 8x16 tiles (player character, NPCs, items)
+
+### Key concept: Tiles are NOT pixels
+
+A tile is an 8x8 grid of **2-bit color indices** (0-3), not actual colors. Each pixel in a tile is 2 bits, so one 8-pixel row = 2 bytes, and one full 8x8 tile = 16 bytes.
+
+The indices are mapped to actual shades through a **palette register**:
+```
+BGP register (0xFF47) = 0xE4 = 0b11_10_01_00
+                                 │  │  │  └─ index 0 → shade 0 (white)
+                                 │  │  └──── index 1 → shade 1 (light gray)
+                                 │  └─────── index 2 → shade 2 (dark gray)
+                                 └────────── index 3 → shade 3 (black)
+```
+
+This indirection is why the PPU has palette registers — games can remap colors without changing tile data. Pokemon uses this for fade-in/fade-out effects.
+
+### Key concept: Tile maps are grids of tile indices
+
+The background and window don't store pixel data — they store a 32x32 grid of **tile index numbers**. Each byte in the tile map is an index that points to a tile in VRAM. The PPU looks up each index, fetches the corresponding 16-byte tile, and draws it.
+
+Two tile map areas exist in VRAM:
+- **0x9800-0x9BFF** — Tile map 0 (32x32 = 1024 bytes)
+- **0x9C00-0x9FFF** — Tile map 1 (32x32 = 1024 bytes)
+
+LCDC bit 3 selects which tile map the background uses. LCDC bit 6 selects which one the window uses.
+
+### Key concept: Two tile data addressing modes
+
+Tile data (the actual 8x8 pixel grids) lives at 0x8000-0x97FF (384 tiles × 16 bytes = 6144 bytes). But the tile map indices can reference it in two ways, controlled by LCDC bit 4:
+
+| LCDC bit 4 | Base address | Index type | Range | Index 0 location |
+|------------|-------------|------------|-------|-----------------|
+| 1 | 0x8000 | Unsigned (0-255) | Tiles 0-255 | 0x8000 |
+| 0 | 0x8800 | Signed (-128 to 127) | Tiles -128 to 127 | 0x9000 |
+
+The signed mode is confusing at first: index 0 maps to address 0x9000 (the middle of the tile data area). Positive indices go up from there, negative indices go down. This allows the background and sprites to share tile data — sprites always use unsigned addressing from 0x8000, while the background can use either mode.
+
+## Reading the Code: Where to Start
+
+The PPU code is in `src/ppu/ppu.py` — a single file containing the `PPU` class. It's much simpler than the CPU because it has no dispatch tables or handler functions.
+
+### Step 1: Look at `__init__` (the register declarations)
+
+The PPU has 12 registers plus 3 internal state fields:
+- `_lcdc`, `_stat`, `_scy`, `_scx`, `_ly`, `_lyc`, `_dma`, `_bgp`, `_obp0`, `_obp1`, `_wy`, `_wx` — the memory-mapped registers
+- `_dot` — current position within a scanline (0-455)
+- `_mode` — current PPU mode (0, 1, 2, or 3)
+- `_memory` — reference to the Memory bus (for setting IF bits)
+
+### Step 2: Read `read()` and `write()`
+
+These are the I/O dispatch methods called by the memory bus. They're straightforward — each register maps to a fixed address. The interesting parts:
+- **STAT write mask**: bits 0-2 are read-only (mode + coincidence flag), only bits 3-6 are writable from CPU
+- **STAT read**: bit 7 always reads as 1
+- **LY**: read-only from CPU; writing resets it to 0
+
+### Step 3: Read `tick()` — the mode state machine
+
+This is the heart of the PPU. It advances the dot counter one T-cycle at a time and triggers mode transitions at specific thresholds. Read this method carefully — it's where all the timing logic lives.
+
+### Step 4: Read the helper methods
+
+- `_set_mode()` — updates `_mode` and STAT bits 0-1
+- `_update_lyc_flag()` — sets/clears STAT bit 2 based on LY==LYC
+- `_request_vblank_interrupt()` — sets IF bit 0 via direct memory access
+
+## The Mode State Machine
+
+The PPU cycles through four modes for each scanline. This is the timing skeleton that everything else builds on.
+
+### The four modes
+
+```
+Scanline 0:   [── Mode 2 ──][──── Mode 3 ────][────── Mode 0 ──────]
+              0            80                252                    456
+              OAM Scan      Pixel Transfer     H-Blank
+
+Scanline 1:   [── Mode 2 ──][──── Mode 3 ────][────── Mode 0 ──────]
+  ...
+Scanline 143: [── Mode 2 ──][──── Mode 3 ────][────── Mode 0 ──────]
+
+Scanline 144: [──────────────── Mode 1 ────────────────────────────]
+  ...                          V-Blank
+Scanline 153: [──────────────── Mode 1 ────────────────────────────]
+              └── then back to Scanline 0, Mode 2
+```
+
+| Mode | Name | Dots | What happens |
+|------|------|------|-------------|
+| 2 | OAM Scan | 0-79 (80 cycles) | PPU searches OAM for sprites on this scanline |
+| 3 | Pixel Transfer | 80-251 (172 cycles) | PPU reads VRAM and pushes pixels to LCD |
+| 0 | H-Blank | 252-455 (204 cycles) | Scanline done, PPU idle, CPU can access VRAM/OAM |
+| 1 | V-Blank | Full scanline (456 cycles × 10) | Frame done, CPU can do anything |
+
+Total per scanline: 456 T-cycles. Total per frame: 154 × 456 = 70,224 T-cycles ≈ 59.73 Hz.
+
+### How tick() works
+
+```python
+def tick(self, cycles):
+    if not (self._lcdc & 0x80):  # LCD disabled
+        return
+
+    for _ in range(cycles):
+        self._dot += 1
+
+        if self._ly < 144:
+            # Visible scanline — transition through modes 2 → 3 → 0
+            if self._dot == 80:    self._set_mode(3)    # Enter Pixel Transfer
+            elif self._dot == 252: self._set_mode(0)    # Enter H-Blank
+            elif self._dot == 456:                       # End of scanline
+                self._dot = 0
+                self._ly += 1
+                if self._ly == 144:
+                    self._set_mode(1)                    # Enter V-Blank
+                    self._request_vblank_interrupt()      # IF bit 0
+                else:
+                    self._set_mode(2)                    # Next scanline
+                self._update_lyc_flag()
+        else:
+            # V-Blank (scanlines 144-153)
+            if self._dot == 456:
+                self._dot = 0
+                self._ly += 1
+                if self._ly > 153:
+                    self._ly = 0
+                    self._set_mode(2)                    # Back to start
+                self._update_lyc_flag()
+```
+
+Key points:
+- The dot counter (`_dot`) counts from 0 to 455 within each scanline, then resets
+- Mode transitions happen at fixed dot thresholds (80, 252, 456)
+- LY increments at the end of each scanline (dot == 456)
+- V-Blank interrupt fires exactly once per frame (when LY transitions to 144)
+- When LCD is disabled (LCDC bit 7 = 0), tick() does nothing — the PPU freezes
+
+### LCD disabled behavior
+
+When a game clears LCDC bit 7, the PPU stops entirely. No modes cycle, no interrupts fire, no LY changes. The screen goes blank. Games disable the LCD to safely write to VRAM at any time (since there are no mode restrictions when the PPU is off). Pokemon does this during screen transitions.
+
+## How the PPU Connects to the Rest of the System
+
+### Wiring pattern (same as Timer)
+
+The PPU follows the same wiring pattern as the Timer. `Memory.load_ppu()` does three things:
+1. Stores `memory._ppu` for I/O register dispatch (0xFF40-0xFF4B)
+2. Sets `ppu._memory` so the PPU can set IF bits (V-Blank interrupt)
+3. Sets `cpu._ppu` so the CPU run loop can call `ppu.tick()`
+
+### CPU run loop integration
+
+The CPU calls `ppu.tick(cycles)` in two places — exactly the same as Timer:
+
+```python
+# 1. During HALT idle (4 cycles per idle iteration)
+if self._ppu:
+    self._ppu.tick(4)
+
+# 2. After each instruction
+if self._ppu:
+    self._ppu.tick(cycles_used)
+```
+
+This means the PPU advances in lockstep with the CPU. Every T-cycle the CPU consumes is also fed to the PPU.
+
+### V-Blank interrupt
+
+When the PPU enters V-Blank (LY transitions to 144), it sets bit 0 of the IF register:
+
+```python
+def _request_vblank_interrupt(self):
+    if self._memory is not None:
+        if_val = self._memory.memory[0xFF0F]
+        self._memory.memory[0xFF0F] = if_val | 0x01
+```
+
+This uses **direct memory array access** (same pattern as Timer) to avoid circular dispatch through `memory.set_value()`.
+
+The CPU's interrupt system then picks this up on the next iteration of the run loop — if IME is enabled and IE bit 0 is set, it services the interrupt by jumping to the V-Blank handler at 0x0040.
+
+## PPU Registers Reference
+
+| Address | Name | Bits | Description |
+|---------|------|------|-------------|
+| 0xFF40 | LCDC | 7: LCD enable<br>6: Window tile map (0=9800, 1=9C00)<br>5: Window enable<br>4: BG tile data (0=8800 signed, 1=8000 unsigned)<br>3: BG tile map (0=9800, 1=9C00)<br>2: Sprite size (0=8x8, 1=8x16)<br>1: Sprite enable<br>0: BG & Window enable | Master control register. Bit 7 is the LCD on/off switch. |
+| 0xFF41 | STAT | 6: LYC interrupt enable<br>5: Mode 2 interrupt enable<br>4: Mode 1 interrupt enable<br>3: Mode 0 interrupt enable<br>2: LYC==LY flag (read-only)<br>1-0: Mode (read-only)<br>7: Always 1 | Status and interrupt configuration. Bits 0-2 are set by hardware. |
+| 0xFF42 | SCY | 0-7 | Background scroll Y (0-255, wraps) |
+| 0xFF43 | SCX | 0-7 | Background scroll X (0-255, wraps) |
+| 0xFF44 | LY | 0-7 | Current scanline (0-153, read-only; write resets to 0) |
+| 0xFF45 | LYC | 0-7 | LY compare value |
+| 0xFF46 | DMA | 0-7 | OAM DMA source (write 0xNN → copies 0xNN00-0xNN9F to OAM) |
+| 0xFF47 | BGP | 7-6: color 3<br>5-4: color 2<br>3-2: color 1<br>1-0: color 0 | Background palette. Maps 2-bit indices to shades. |
+| 0xFF48 | OBP0 | Same as BGP | Sprite palette 0 (color 0 = transparent) |
+| 0xFF49 | OBP1 | Same as BGP | Sprite palette 1 (color 0 = transparent) |
+| 0xFF4A | WY | 0-7 | Window Y position |
+| 0xFF4B | WX | 0-7 | Window X position (offset by 7: WX=7 = left edge) |
+
+## VRAM Layout
+
+```
+0x8000 ┌──────────────────────┐
+       │  Tile Data Block 0   │  128 tiles × 16 bytes = 2048 bytes
+       │  (tiles 0-127)       │  Used by sprites (always)
+0x8800 ├──────────────────────┤
+       │  Tile Data Block 1   │  128 tiles × 16 bytes = 2048 bytes
+       │  (tiles 128-255 /    │  Shared between sprites and BG
+       │   signed -128 to -1) │
+0x9000 ├──────────────────────┤
+       │  Tile Data Block 2   │  128 tiles × 16 bytes = 2048 bytes
+       │  (signed 0-127)      │  Used by BG in signed mode (LCDC bit 4 = 0)
+0x9800 ├──────────────────────┤
+       │  Tile Map 0          │  32×32 = 1024 bytes
+       │                      │  BG (LCDC bit 3=0) / Window (LCDC bit 6=0)
+0x9C00 ├──────────────────────┤
+       │  Tile Map 1          │  32×32 = 1024 bytes
+       │                      │  BG (LCDC bit 3=1) / Window (LCDC bit 6=1)
+0xA000 └──────────────────────┘
+```
+
+## OAM (Sprite) Layout
+
+OAM is 160 bytes at 0xFE00-0xFE9F, holding 40 sprite entries of 4 bytes each:
+
+| Byte | Name | Description |
+|------|------|-------------|
+| 0 | Y position | Sprite Y + 16 (Y=0 means sprite is at Y=-16, off-screen) |
+| 1 | X position | Sprite X + 8 (X=0 means sprite is at X=-8, off-screen) |
+| 2 | Tile index | Which tile to draw (0-255, always uses 0x8000 unsigned addressing) |
+| 3 | Attributes | Bit 7: BG priority, Bit 6: Y-flip, Bit 5: X-flip, Bit 4: palette (OBP0/OBP1) |
+
+The Y/X offsets mean a sprite at position (8, 16) in OAM appears at screen position (0, 0) — the top-left corner.
+
+## Tile Data Encoding
+
+Each tile is 8x8 pixels, 2 bits per pixel, stored as 16 bytes (2 bytes per row). The two bits for each pixel come from two separate bytes — the "low byte" and "high byte" of each row:
+
+```
+Row 0: byte 0 (low bits), byte 1 (high bits)
+Row 1: byte 2 (low bits), byte 3 (high bits)
+...
+Row 7: byte 14 (low bits), byte 15 (high bits)
+```
+
+To get the 2-bit color index for pixel X in a row:
+```python
+low_bit  = (low_byte >> (7 - x)) & 1
+high_bit = (high_byte >> (7 - x)) & 1
+color_index = (high_bit << 1) | low_bit  # 0, 1, 2, or 3
+```
+
+Note: pixel 0 (leftmost) uses bit 7 (MSB), pixel 7 (rightmost) uses bit 0 (LSB).
+
+## What's Implemented vs What's Next
+
+### Implemented
+- All 12 PPU registers with correct read/write behavior
+- Mode state machine (modes 0-3 cycling at correct T-cycle thresholds)
+- LY counter (0-153 with wrap)
+- STAT mode bits (0-1) and LYC coincidence flag (bit 2)
+- V-Blank interrupt (IF bit 0)
+- LCD disabled behavior
+- CPU integration (tick called from run loop)
+
+### Not yet implemented
+- **Background rendering** — reading tile maps, decoding tile data, applying scroll, palette lookup
+- **Window rendering** — overlay with WY/WX positioning
+- **Sprite rendering** — OAM scan, 10-per-line limit, priority, flipping, transparency
+- **STAT interrupts** — mode-change and LYC-match interrupts (IF bit 1)
+- **VRAM/OAM access restrictions** — blocking CPU access during modes 2/3
+- **OAM DMA transfer** — bulk copy triggered by writing to 0xFF46
+- **Framebuffer output** — actual pixel array for display
+
+## Implementation files
+
+| File | Purpose |
+|------|---------|
+| `src/ppu/ppu.py` | PPU class — registers, mode state machine, V-Blank interrupt |
+| `tests/ppu/test_ppu.py` | Register tests (35), mode timing (14), STAT/LYC (5), V-Blank interrupt (4), LCD disabled (2), CPU integration (2) |

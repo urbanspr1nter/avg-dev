@@ -37,6 +37,14 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
 
 - `Opcodes.json`: Full Game Boy opcode database (~2.5MB) — see "Opcodes.json Format" below
 
+- `src/ppu/ppu.py`: PPU (Pixel Processing Unit) implementation
+  - Holds 12 memory-mapped registers (0xFF40-0xFF4B)
+  - Mode state machine: cycles through OAM Scan → Pixel Transfer → H-Blank → V-Blank
+  - `tick(cycles)` called by CPU run loop after each instruction (same pattern as Timer)
+  - Fires V-Blank interrupt (IF bit 0) when entering scanline 144
+  - Updates STAT mode bits (0-1) and LYC coincidence flag (bit 2)
+  - LCD disabled check: tick() does nothing when LCDC bit 7 = 0
+
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
   - `test_fetch_opcodes_only.py`: Tests for opcodes without operands
@@ -55,6 +63,8 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
 - `tests/cartridge/`: Cartridge and MBC1 bank switching tests (55 tests)
   - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
   - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
+- `tests/ppu/`: PPU tests (61 tests)
+  - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration
 
 ## Critical Implementation Notes
 
@@ -327,7 +337,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-506 tests passing as of February 22, 2026.
+567 tests passing as of February 24, 2026.
 
 ### Blargg Test ROM Validation
 
@@ -444,64 +454,48 @@ The Game Boy interrupt system is being implemented in multiple phases:
   any interrupt becomes pending (IF & IE != 0), then wakes regardless of IME
 - All memory accesses to 0xFF0F/0xFFFF go through register handlers
 
-## Next Up: PPU (Pixel Processing Unit) / Video
+## PPU (Pixel Processing Unit) Implementation
 
-The CPU is complete and validated. The next major subsystem to implement is the PPU.
+### ✅ Phase 1: Registers (COMPLETED)
+- 12 memory-mapped registers (0xFF40-0xFF4B) in `src/ppu/ppu.py`
+- Wired into memory bus via `load_ppu()` in `gb_memory.py`
+- STAT write mask (bits 0-2 read-only, bit 7 always reads 1)
+- LY read-only from CPU side (writing resets to 0)
+- 35 register tests
 
-### What the PPU does
+### ✅ Phase 2: Mode State Machine (COMPLETED)
+- `tick(cycles)` method advances PPU alongside CPU (same pattern as Timer)
+- Mode transitions: OAM Scan (mode 2, 80 dots) → Pixel Transfer (mode 3, 172 dots) → H-Blank (mode 0, 204 dots)
+- V-Blank (mode 1) at scanlines 144-153
+- LY increments each 456-cycle scanline, wraps after 153
+- STAT bits 0-1 reflect current mode, bit 2 reflects LYC==LY
+- V-Blank interrupt (IF bit 0) fires when entering scanline 144
+- LCD disabled check: tick() does nothing when LCDC bit 7 = 0
+- CPU integration: `ppu.tick()` called from run loop (HALT idle + post-instruction)
+- 26 mode state machine tests
 
-Renders the 160x144 pixel display, one scanline at a time. 154 scanlines per frame (144 visible + 10 V-Blank). Three rendering layers: background (scrollable tile map), window (fixed overlay), and sprites (OAM).
+### 📋 Phase 3: Background Rendering
+- Tile data decoding from VRAM (0x8000-0x97FF)
+- Tile map reading (0x9800-0x9BFF or 0x9C00-0x9FFF based on LCDC bit 3)
+- LCDC bit 4: tile data addressing mode (0x8000 unsigned vs 0x8800 signed)
+- SCY/SCX scroll support (background wraps at 256x256)
+- BGP palette application (2-bit color indices → 4 shades of gray)
+- Framebuffer output (160x144 array of shade values)
 
-### Key components
+### 📋 Phase 4: Window Rendering
+- Window overlay (WY/WX position, LCDC bit 5 enable)
+- Window tile map area (LCDC bit 6)
 
-| Component | Address Range | Description |
-|-----------|--------------|-------------|
-| VRAM | 0x8000-0x9FFF | 8KB — tile data (0x8000-0x97FF) + two 32x32 tile maps (0x9800-0x9FFF) |
-| OAM | 0xFE00-0xFE9F | 160 bytes — 40 sprite entries, 4 bytes each (Y, X, tile#, attributes) |
-| PPU registers | 0xFF40-0xFF4B | LCDC, STAT, SCY, SCX, LY, LYC, DMA, BGP, OBP0, OBP1, WY, WX |
+### 📋 Phase 5: Sprite Rendering
+- OAM parsing (40 sprites, 4 bytes each at 0xFE00-0xFE9F)
+- 10 sprites per scanline limit
+- 8x8 and 8x16 sprite modes (LCDC bit 2)
+- OBP0/OBP1 palette selection
+- Sprite priority and transparency (color 0 = transparent)
 
-### PPU registers
+### 📋 Phase 6: STAT Interrupts + Access Restrictions
+- STAT interrupt (IF bit 1) on mode transitions and LYC match
+- VRAM/OAM access restrictions by mode
 
-| Address | Name | Description |
-|---------|------|-------------|
-| 0xFF40 | LCDC | LCD control — master enable, tile data area, BG/window/sprite enables |
-| 0xFF41 | STAT | LCD status — current mode, LYC=LY flag, interrupt enables |
-| 0xFF42 | SCY | Background scroll Y |
-| 0xFF43 | SCX | Background scroll X |
-| 0xFF44 | LY | Current scanline (0-153, read-only) |
-| 0xFF45 | LYC | LY compare — triggers STAT interrupt when LY == LYC |
-| 0xFF46 | DMA | OAM DMA transfer — write start address, copies 160 bytes to OAM |
-| 0xFF47 | BGP | Background palette |
-| 0xFF48 | OBP0 | Sprite palette 0 |
-| 0xFF49 | OBP1 | Sprite palette 1 |
-| 0xFF4A | WY | Window Y position |
-| 0xFF4B | WX | Window X position (offset by 7: WX=7 means left edge) |
-
-### Mode state machine (per scanline)
-
-Each scanline cycles through modes with specific durations:
-
-| Mode | Name | Duration | VRAM access | OAM access |
-|------|------|----------|-------------|------------|
-| 2 | OAM Scan | 80 T-cycles | Yes | No |
-| 3 | Pixel Transfer | 172 T-cycles (variable) | No | No |
-| 0 | H-Blank | 204 T-cycles (variable) | Yes | Yes |
-| 1 | V-Blank | 4560 T-cycles (10 scanlines) | Yes | Yes |
-
-Total per scanline: 456 T-cycles. Total per frame: 70,224 T-cycles (~59.73 Hz).
-
-### Suggested build order
-
-1. PPU registers + mode state machine (ticks alongside CPU, fires V-Blank/STAT interrupts)
-2. Background rendering (tiles + scroll)
-3. Window rendering
-4. Sprite rendering (OAM)
-5. STAT interrupts + VRAM/OAM access restrictions by mode
-6. DMA transfer
-
-### What Pokemon Red/Blue needs
-
-- Background + window rendering (menus, overworld, battle screens)
-- Sprites (player character, NPCs, Pokemon battle sprites)
-- Scroll registers (overworld camera movement)
-- 4 shades of gray initially (no Super Game Boy color needed yet)
+### 📋 Phase 7: DMA Transfer
+- OAM DMA (write to 0xFF46 copies 160 bytes to OAM)
