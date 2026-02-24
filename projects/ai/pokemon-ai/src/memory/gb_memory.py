@@ -66,8 +66,13 @@ class Memory:
         """Load a PPU into the memory bus.
 
         Reads/writes to 0xFF40-0xFF4B are delegated to the PPU handler.
+        The PPU gets a reference to memory so it can set IF bits (V-Blank
+        interrupt), and the CPU gets a reference for tick() calls.
         """
         self._ppu = ppu
+        self._ppu._memory = self
+        if hasattr(self, '_cpu') and self._cpu:
+            self._cpu._ppu = ppu
 
     def _map_address(self, address: int) -> int:
         """
