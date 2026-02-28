@@ -50,6 +50,14 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Sprite rendering: OAM scan (10/line limit), 8x8/8x16 modes, flips, palettes, priority, BG priority, transparency
   - 160×144 framebuffer with `get_framebuffer()` accessor and `render_ascii()` visualization
 
+- `src/joypad/joypad.py`: Joypad (P1/JOYP register at 0xFF00)
+  - 8 buttons in two groups: d-pad (right/left/up/down) and action (A/B/Select/Start)
+  - Select-line multiplexing: CPU writes bits 4-5 to choose group, reads bits 0-3 for state
+  - Active-low: 0 = pressed/selected, 1 = not pressed/not selected
+  - `press(button)` / `release(button)` for external input (REST API integration)
+  - Joypad interrupt (IF bit 4) on button press (1→0 transition)
+  - Wired into memory bus via `load_joypad()` (same pattern as Timer/Serial)
+
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
   - `test_fetch_opcodes_only.py`: Tests for opcodes without operands
@@ -70,6 +78,8 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
 - `tests/ppu/`: PPU tests (122 tests)
   - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration, BG rendering, tile decoding, scrolling, tile addressing, window rendering, sprite rendering, STAT interrupts, OAM DMA, VRAM/OAM access restrictions, ASCII output
+- `tests/joypad/`: Joypad tests (34 tests)
+  - `test_joypad.py`: Register read/write, select-line multiplexing, all 8 buttons, press/release, interrupt firing, memory integration, GameBoy integration
 
 ## Critical Implementation Notes
 
@@ -217,13 +227,33 @@ To make the work more digestible and manageable, we follow this approach:
 ## Commands to Run Tests
 
 ```bash
-# Run all CPU tests
+# All tests (662 tests)
+python -m unittest discover tests/ -v
+
+# CPU tests only (388 tests)
 python -m unittest discover tests/cpu -v
 
-# Run specific test file
+# PPU tests (122 tests)
+python -m unittest discover tests/ppu -v
+
+# Joypad tests (34 tests)
+python -m unittest discover tests/joypad -v
+
+# Cartridge tests (55 tests)
+python -m unittest discover tests/cartridge -v
+
+# Timer, serial, memory tests
+python -m unittest discover tests/timer -v
+python -m unittest discover tests/serial -v
+python -m unittest discover tests/memory -v
+
+# GameBoy integration tests
+python -m unittest tests.test_gameboy -v
+
+# Specific test file
 python -m unittest tests.cpu.test_fetch_with_operands -v
 
-# Run specific test method
+# Specific test method
 python -m unittest tests.cpu.test_fetch_with_operands.TestFetchWithOperands.test_run_ld_d_n8 -v
 ```
 
@@ -342,7 +372,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-628 tests passing as of February 24, 2026.
+662 tests passing as of February 28, 2026.
 
 ### Blargg Test ROM Validation
 
@@ -361,7 +391,7 @@ Tetris title screen renders correctly via ASCII framebuffer:
 
 Two bugs were found and fixed during Tetris integration:
 1. **VRAM/OAM access restrictions**: Must only apply when LCD is enabled (LCDC bit 7 = 1). When LCD is off, VRAM/OAM are freely accessible. Without this fix, games that disable LCD to write VRAM (standard practice) would have writes silently dropped if the PPU happened to be in mode 3 when LCD was turned off.
-2. **Joypad register (0xFF00)**: Reading must return 0xCF (no buttons pressed) instead of 0x00 (which the game interprets as "all buttons pressed"). A **temporary hack** was added inline in `gb_memory.py` `get_value()` — this is NOT a proper implementation. A full Joypad class needs to be built (same pattern as Timer/Serial/PPU) with button state tracking, select-line multiplexing (bits 4-5 select d-pad vs buttons), joypad interrupt (IF bit 4), and REST API integration for external input. This is a prerequisite for actually playing games.
+2. **Joypad register (0xFF00)**: Reading must return 0xCF (no buttons pressed) instead of 0x00 (which the game interprets as "all buttons pressed"). This was initially a temporary hack, now replaced by the full Joypad class.
 
 ## Interrupt System Implementation Plan
 

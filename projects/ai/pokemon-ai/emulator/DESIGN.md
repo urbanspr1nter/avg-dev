@@ -187,6 +187,84 @@ A transfer is triggered when SC is written with both bit 7 (start) and bit 0 (in
 | `src/serial/serial.py` | Serial class with SB/SC registers and output capture buffer |
 | `tests/serial/test_serial.py` | Register access, transfer protocol, memory integration |
 
+## Joypad
+
+The Game Boy has 8 buttons but only one 8-bit register (P1/JOYP at 0xFF00) to read them through. The hardware solves this with **select-line multiplexing**: the CPU writes to the register to choose which button group to read, then reads the same register to get the button state.
+
+### Why everything is active-low
+
+The joypad hardware uses pull-up resistors. When no button is pressed, the line is pulled high (1). Pressing a button grounds the line (0). This means **0 = pressed/selected** and **1 = not pressed/not selected** throughout the entire register. This is counterintuitive but faithful to the electrical design.
+
+### The two button groups
+
+The 8 buttons are split into two groups of 4, sharing the same 4 data lines (bits 0-3):
+
+| Group | Selected by | Bit 3 | Bit 2 | Bit 1 | Bit 0 |
+|-------|------------|-------|-------|-------|-------|
+| **D-pad** | Bit 4 = 0 | Down | Up | Left | Right |
+| **Action** | Bit 5 = 0 | Start | Select | B | A |
+
+### Register layout (0xFF00)
+
+```
+Bit 7: Unused (always reads 1)
+Bit 6: Unused (always reads 1)
+Bit 5: P15 — select action buttons  (0 = selected)  [ACTIVE LOW, ACTIVE LOW, WRITE]
+Bit 4: P14 — select d-pad            (0 = selected)  [WRITE]
+Bit 3: Down  / Start                  (0 = pressed)   [READ-ONLY]
+Bit 2: Up    / Select                 (0 = pressed)   [READ-ONLY]
+Bit 1: Left  / B                      (0 = pressed)   [READ-ONLY]
+Bit 0: Right / A                      (0 = pressed)   [READ-ONLY]
+```
+
+Bits 4-5 are the only writable bits. Bits 0-3 are read-only and reflect button state based on which group is selected. Bits 6-7 are unused and always read as 1.
+
+### How games read input
+
+Games use a two-step polling sequence, typically once per frame during V-Blank:
+
+```
+; Step 1: Read d-pad
+LD A, $20       ; bit 5=1 (deselect action), bit 4=0 (select d-pad)
+LDH ($00), A    ; write to P1
+LDH A, ($00)    ; read back — bits 0-3 now reflect d-pad state
+AND $0F         ; mask lower nibble → d-pad result
+
+; Step 2: Read action buttons
+LD A, $10       ; bit 5=0 (select action), bit 4=1 (deselect d-pad)
+LDH ($00), A    ; write to P1
+LDH A, ($00)    ; read back — bits 0-3 now reflect action button state
+AND $0F         ; mask lower nibble → action result
+```
+
+The game combines both results into a full 8-button state word for its input handling logic.
+
+### Select line combinations
+
+| Bits 5-4 | Meaning | Bits 0-3 return |
+|----------|---------|-----------------|
+| `10` (0x20) | D-pad selected | D-pad button state |
+| `01` (0x10) | Action selected | Action button state |
+| `11` (0x30) | Neither selected (idle) | All 1s (no buttons) |
+| `00` (0x00) | Both selected | AND of both groups (0 if either group's button pressed) |
+
+The "both selected" case is rarely used by games but must be handled correctly — the data lines are physically connected, so pressing a button in either group pulls the shared line low.
+
+### Joypad interrupt (IF bit 4)
+
+When any button transitions from not-pressed to pressed (bit goes from 1 to 0), the hardware sets IF bit 4. This fires the joypad interrupt if IE bit 4 is also set and IME is enabled.
+
+The primary use of this interrupt is **waking from STOP mode** — the Game Boy's deep sleep state used for battery saving. Most games (including Pokemon) don't enable the joypad interrupt for normal input handling; they poll 0xFF00 every frame instead.
+
+The interrupt vector is at **0x0060** (lowest priority of all 5 interrupt sources).
+
+### Implementation files
+
+| File | Purpose |
+|------|---------|
+| `src/joypad/joypad.py` | Joypad class with button state, select-line multiplexing, interrupt firing |
+| `tests/joypad/test_joypad.py` | Register read/write, all 8 buttons, multiplexing, interrupts, memory/GameBoy integration |
+
 ## System Initialization (GameBoy class)
 
 The `GameBoy` class in `src/gameboy.py` centralizes the initialization of all hardware components. Without it, callers must know the exact sequence of constructor calls and `load_*()` methods — a fragile setup that silently breaks if the order changes.
@@ -201,8 +279,9 @@ The order matters because components have cross-references:
 | 2 | Create CPU | Constructor sets `memory._cpu` for interrupt register dispatch (IF/IE) |
 | 3 | load_timer() | Needs Memory (for IF writes) AND CPU (for tick reference). Wires three cross-references. |
 | 4 | load_serial() | Needs Memory for I/O dispatch. No other cross-references. |
-| 5 | load_ppu() | Needs Memory (for IF writes on V-Blank) AND CPU (for tick reference). Same pattern as Timer. |
-| 6 | load_cartridge() | Optional, at runtime. Only affects Memory read/write for ROM range. |
+| 5 | load_joypad() | Needs Memory for I/O dispatch and IF writes (joypad interrupt). |
+| 6 | load_ppu() | Needs Memory (for IF writes on V-Blank) AND CPU (for tick reference). Same pattern as Timer. |
+| 7 | load_cartridge() | Optional, at runtime. Only affects Memory read/write for ROM range. |
 
 ### Usage
 
@@ -219,7 +298,7 @@ print(gb.get_serial_output())  # Read test ROM results
 
 | File | Purpose |
 |------|---------|
-| `src/gameboy.py` | GameBoy class — owns and wires Memory, CPU, Timer, Serial, PPU, Cartridge |
+| `src/gameboy.py` | GameBoy class — owns and wires Memory, CPU, Timer, Serial, Joypad, PPU, Cartridge |
 | `tests/test_gameboy.py` | Initialization wiring, timer/serial/cartridge integration through GameBoy |
 
 # CPU Implementation Deep Dive
@@ -848,7 +927,8 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `src/cpu/handlers/misc_handlers.py` | NOP, STOP, SCF, CCF, CPL, DAA |
 | `src/cpu/handlers/rotate_handlers.py` | RLCA, RRCA, RLA, RRA (unprefixed A-only rotates) |
 | `src/cpu/handlers/stack_handlers.py` | PUSH, POP |
-| `src/memory/gb_memory.py` | Memory bus with I/O register dispatch (serial, timer, cartridge) |
+| `src/joypad/joypad.py` | Joypad — P1/JOYP register, button state, select-line multiplexing, interrupt |
+| `src/memory/gb_memory.py` | Memory bus with I/O register dispatch (joypad, serial, timer, cartridge) |
 | `src/cartridge/gb_cartridge.py` | Cartridge class — ROM loading, header parsing, MBC1 bank switching |
 | `src/ppu/ppu.py` | PPU — registers, mode state machine, V-Blank interrupt, LYC coincidence |
 | `src/timer/gb_timer.py` | Timer subsystem — internal counter, TIMA, DIV, interrupt firing |
@@ -880,12 +960,13 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `tests/ppu/test_ppu.py` | Register defaults/read/write, mode timing, STAT flags, V-Blank interrupt, STAT interrupts, CPU integration, BG/window/sprite rendering, OAM DMA, VRAM/OAM access restrictions, ASCII output |
 | `tests/timer/test_gb_timer.py` | DIV counting, TIMA clock rates, overflow/reload, CPU integration |
 | `tests/serial/test_serial.py` | Register access, transfer protocol, memory integration |
+| `tests/joypad/test_joypad.py` | Register read/write, button press/release, select-line multiplexing, interrupts, memory/GameBoy integration |
 | `tests/test_gameboy.py` | GameBoy initialization wiring, component integration |
 
 ### Running tests
 
 ```bash
-# All tests (628 tests)
+# All tests (662 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
@@ -893,6 +974,9 @@ python -m unittest discover tests/cpu -v
 
 # PPU tests (122 tests)
 python -m unittest discover tests/ppu -v
+
+# Joypad tests (34 tests)
+python -m unittest discover tests/joypad -v
 
 # Cartridge tests (55 tests, includes MBC1 bank switching)
 python -m unittest discover tests/cartridge -v

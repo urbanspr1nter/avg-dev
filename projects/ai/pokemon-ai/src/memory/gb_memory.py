@@ -25,6 +25,7 @@ class Memory:
         self._serial = None
         self._timer = None
         self._ppu = None
+        self._joypad = None
 
     def load_cartridge(self, cartridge):
         """Load a cartridge into the memory bus.
@@ -61,6 +62,16 @@ class Memory:
         # without a CPU.
         if hasattr(self, '_cpu') and self._cpu:
             self._cpu._timer = timer
+
+    def load_joypad(self, joypad):
+        """Load a joypad handler into the memory bus.
+
+        Reads/writes to 0xFF00 are delegated to the joypad handler.
+        The joypad gets a reference to memory so it can set IF bits
+        (joypad interrupt, bit 4).
+        """
+        self._joypad = joypad
+        self._joypad._memory = self
 
     def load_ppu(self, ppu):
         """Load a PPU into the memory bus.
@@ -104,15 +115,9 @@ class Memory:
             if 0xFE00 <= address <= 0xFE9F and self._ppu._mode in (2, 3):
                 return 0xFF
 
-        # HACK: Joypad stub — always returns "no buttons pressed".
-        # TODO: Replace with a proper Joypad class (like Timer/Serial/PPU) that
-        # tracks button state, handles select-line multiplexing, and supports
-        # the joypad interrupt (IF bit 4). Needed for actual game input via REST API.
-        if address == 0xFF00:
-            select = self.memory[0xFF00] & 0x30
-            return 0xC0 | select | 0x0F
-
         # I/O register dispatch
+        if address == 0xFF00 and self._joypad is not None:
+            return self._joypad.read(address)
         if 0xFF01 <= address <= 0xFF02 and self._serial is not None:
             return self._serial.read(address)
         if 0xFF04 <= address <= 0xFF07 and self._timer is not None:
@@ -152,6 +157,9 @@ class Memory:
                 return
 
         # I/O register dispatch
+        if address == 0xFF00 and self._joypad is not None:
+            self._joypad.write(address, value)
+            return
         if 0xFF01 <= address <= 0xFF02 and self._serial is not None:
             self._serial.write(address, value)
             return

@@ -3,6 +3,7 @@ from src.cpu.gb_cpu import CPU
 from src.timer.gb_timer import Timer
 from src.serial.serial import Serial
 from src.ppu.ppu import PPU
+from src.joypad.joypad import Joypad
 from src.cartridge.gb_cartridge import Cartridge
 
 
@@ -60,7 +61,11 @@ class GameBoy:
         self.serial = Serial()
         self.memory.load_serial(self.serial)
 
-        # Step 5: PPU — load_ppu() wires memory._ppu (I/O dispatch for 0xFF40-0xFF4B).
+        # Step 5: Joypad — load_joypad() wires memory._joypad (I/O dispatch for 0xFF00).
+        self.joypad = Joypad()
+        self.memory.load_joypad(self.joypad)
+
+        # Step 6: PPU — load_ppu() wires memory._ppu (I/O dispatch for 0xFF40-0xFF4B).
         self.ppu = PPU()
         self.memory.load_ppu(self.ppu)
 
