@@ -265,6 +265,83 @@ The interrupt vector is at **0x0060** (lowest priority of all 5 interrupt source
 | `src/joypad/joypad.py` | Joypad class with button state, select-line multiplexing, interrupt firing |
 | `tests/joypad/test_joypad.py` | Register read/write, all 8 buttons, multiplexing, interrupts, memory/GameBoy integration |
 
+## Frontend and Timing
+
+The emulator includes a pygame-based GUI frontend that renders the PPU framebuffer in real-time and maps keyboard input to the joypad. The frontend is a thin layer — the GameBoy core has no knowledge of it.
+
+### Frame-based timing
+
+The Game Boy's master clock runs at 4,194,304 Hz. One complete video frame takes 154 scanlines × 456 T-cycles = **70,224 T-cycles**, yielding a natural frame rate of ~59.73 fps (~16.74ms per frame).
+
+The frontend uses a **run-one-frame-then-sleep** timing model:
+
+```
+while running:
+    frame_start = time.perf_counter()
+
+    handle_input_events()                              # poll keyboard → joypad
+
+    target = gb.cpu.current_cycles + 70_224            # one frame worth of cycles
+    gb.run(max_cycles=target)                          # emulate until target reached
+
+    render_framebuffer_to_window()                     # blit PPU output to pygame
+
+    elapsed = time.perf_counter() - frame_start
+    remaining = 0.01674 - elapsed                      # ~16.74ms frame budget
+    if remaining > 0:
+        time.sleep(remaining)                          # throttle to real-time
+```
+
+The CPU's `run(max_cycles)` uses `current_cycles` as an absolute monotonic counter — it exits when `current_cycles >= max_cycles`. Each frame we read `current_cycles` fresh and add 70,224 to compute the next target. The CPU may overshoot by one instruction's worth of cycles (4-16), which is automatically accounted for since the next frame reads the actual counter value.
+
+If the emulation is too slow to complete a frame within 16.74ms (Python runs the CPU at ~2 MHz, vs the Game Boy's 4.19 MHz), the sleep is skipped and the game runs at whatever speed the host can manage — roughly half real-time.
+
+### Rendering
+
+The PPU produces a 160×144 framebuffer of shade values (0-3). The frontend maps these to the classic DMG green palette:
+
+| Shade | RGB | Appearance |
+|-------|-----|------------|
+| 0 | (155, 188, 15) | Lightest (off/white) |
+| 1 | (139, 172, 15) | Light |
+| 2 | (48, 98, 48) | Dark |
+| 3 | (15, 56, 15) | Darkest (on/black) |
+
+The framebuffer is drawn pixel-by-pixel onto a native 160×144 pygame surface, then scaled up to the window size (default 3x = 480×432).
+
+### Keyboard mapping
+
+| Key | Game Boy Button |
+|-----|-----------------|
+| W / A / S / D | Up / Left / Down / Right |
+| K | A |
+| J | B |
+| Enter | Start |
+| Delete | Select |
+| Escape | Quit |
+
+### Modularity for future frontends
+
+The frontend interacts with the GameBoy core through three existing interfaces:
+
+1. **`gb.run(max_cycles=target)`** — advance emulation by one frame
+2. **`gb.get_framebuffer()`** — read the PPU's 160×144 shade array
+3. **`gb.joypad.press(button)` / `gb.joypad.release(button)`** — inject input
+
+A future HTML5 frontend would POST button presses to a REST API that calls the same `press()`/`release()` methods, and serve the framebuffer as image data. No abstract base class is needed — the GameBoy class itself is the stable interface.
+
+### Post-boot state
+
+The `GameBoy.init_post_boot_state()` method sets all CPU registers and memory to the values the boot ROM leaves behind, allowing the emulator to skip the boot ROM and jump directly to the cartridge entry point at 0x0100. Both `run_pygame.py` and `run_tetris.py` use this shared helper.
+
+### Implementation files
+
+| File | Purpose |
+|------|---------|
+| `src/frontend/pygame_frontend.py` | PygameFrontend class — rendering, input, timing loop |
+| `run_pygame.py` | Runner script for interactive play (`python run_pygame.py rom/Tetris.gb`) |
+| `tests/frontend/test_pygame_frontend.py` | Palette, key mapping, timing constants, event handling, post-boot state tests |
+
 ## System Initialization (GameBoy class)
 
 The `GameBoy` class in `src/gameboy.py` centralizes the initialization of all hardware components. Without it, callers must know the exact sequence of constructor calls and `load_*()` methods — a fragile setup that silently breaks if the order changes.
@@ -933,7 +1010,8 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `src/ppu/ppu.py` | PPU — registers, mode state machine, V-Blank interrupt, LYC coincidence |
 | `src/timer/gb_timer.py` | Timer subsystem — internal counter, TIMA, DIV, interrupt firing |
 | `src/serial/serial.py` | Serial port — SB/SC registers, Blargg output capture |
-| `src/gameboy.py` | GameBoy class — system bootstrap, owns all components |
+| `src/frontend/pygame_frontend.py` | Pygame GUI frontend — rendering, input mapping, frame-based timing |
+| `src/gameboy.py` | GameBoy class — system bootstrap, owns all components, post-boot state init |
 | `Opcodes.json` | Authoritative opcode reference (~2.5MB) |
 
 ### Test files
@@ -961,12 +1039,13 @@ A previous mistake mapped `0x27` to a rotate handler. It's actually DAA (Decimal
 | `tests/timer/test_gb_timer.py` | DIV counting, TIMA clock rates, overflow/reload, CPU integration |
 | `tests/serial/test_serial.py` | Register access, transfer protocol, memory integration |
 | `tests/joypad/test_joypad.py` | Register read/write, button press/release, select-line multiplexing, interrupts, memory/GameBoy integration |
+| `tests/frontend/test_pygame_frontend.py` | DMG palette, key mapping, timing constants, frame cycle advancement, event handling, post-boot state |
 | `tests/test_gameboy.py` | GameBoy initialization wiring, component integration |
 
 ### Running tests
 
 ```bash
-# All tests (662 tests)
+# All tests (681 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
@@ -977,6 +1056,9 @@ python -m unittest discover tests/ppu -v
 
 # Joypad tests (34 tests)
 python -m unittest discover tests/joypad -v
+
+# Frontend tests (19 tests)
+python -m unittest discover tests/frontend -v
 
 # Cartridge tests (55 tests, includes MBC1 bank switching)
 python -m unittest discover tests/cartridge -v

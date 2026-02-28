@@ -90,6 +90,21 @@ class GameBoy:
         """Return any serial output captured so far (ASCII string)."""
         return self.serial.get_output()
 
+    def init_post_boot_state(self):
+        """Set CPU registers and memory to the post-boot DMG state.
+
+        Skips the boot ROM by initializing all registers to the values
+        the boot ROM leaves behind, and setting PC to 0x0100 (cartridge
+        entry point).
+        """
+        self.cpu.set_register('AF', 0x01B0)   # A=0x01, F=0xB0 (Z=1,N=0,H=1,C=1)
+        self.cpu.set_register('BC', 0x0013)
+        self.cpu.set_register('DE', 0x00D8)
+        self.cpu.set_register('HL', 0x014D)
+        self.cpu.set_register('SP', 0xFFFE)
+        self.cpu.set_register('PC', 0x0100)
+        self.memory.set_value(0xFF0F, 0xE1)  # Post-boot IF
+
     def get_framebuffer(self):
         """Return the PPU's 160x144 framebuffer (shade values 0-3)."""
         return self.ppu.get_framebuffer()

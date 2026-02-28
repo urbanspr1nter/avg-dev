@@ -24,17 +24,7 @@ def run_tetris(max_cycles):
     print("-" * 40)
 
     # Set post-boot DMG register state (skip boot ROM)
-    gb.cpu.registers.A = 0x01
-    gb.cpu.registers.F = 0xB0  # Z=1, N=0, H=1, C=1
-    gb.cpu.registers.B = 0x00
-    gb.cpu.registers.C = 0x13
-    gb.cpu.registers.D = 0x00
-    gb.cpu.registers.E = 0xD8
-    gb.cpu.registers.H = 0x01
-    gb.cpu.registers.L = 0x4D
-    gb.cpu.registers.SP = 0xFFFE
-    gb.cpu.registers.PC = 0x0100
-    gb.memory.set_value(0xFF0F, 0xE1)  # Post-boot IF
+    gb.init_post_boot_state()
 
     start = time.time()
     gb.run(max_cycles=max_cycles)

@@ -58,6 +58,14 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Joypad interrupt (IF bit 4) on button press (1→0 transition)
   - Wired into memory bus via `load_joypad()` (same pattern as Timer/Serial)
 
+- `src/frontend/pygame_frontend.py`: Pygame GUI frontend
+  - `PygameFrontend` class — thin rendering layer over the GameBoy core
+  - Frame-based timing: runs 70,224 T-cycles per frame (~16.74ms), sleeps for remainder to hit ~59.7 fps
+  - Renders PPU framebuffer (shade values 0-3) using classic DMG green palette
+  - Keyboard input mapped to joypad: WASD (d-pad), J/K (B/A), Enter (Start), Delete (Select)
+  - GameBoy core has no knowledge of the frontend — frontend depends on core, not vice versa
+  - Designed for modularity: future HTML5/REST frontend uses the same `gb.run()` / `gb.get_framebuffer()` / `gb.joypad.press()` interface
+
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
   - `test_fetch_opcodes_only.py`: Tests for opcodes without operands
@@ -80,6 +88,8 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration, BG rendering, tile decoding, scrolling, tile addressing, window rendering, sprite rendering, STAT interrupts, OAM DMA, VRAM/OAM access restrictions, ASCII output
 - `tests/joypad/`: Joypad tests (34 tests)
   - `test_joypad.py`: Register read/write, select-line multiplexing, all 8 buttons, press/release, interrupt firing, memory integration, GameBoy integration
+- `tests/frontend/`: Frontend tests (19 tests)
+  - `test_pygame_frontend.py`: DMG palette, key mapping, timing constants, frame cycle advancement, event handling (press/release/escape/quit), post-boot state
 
 ## Critical Implementation Notes
 
@@ -227,7 +237,7 @@ To make the work more digestible and manageable, we follow this approach:
 ## Commands to Run Tests
 
 ```bash
-# All tests (662 tests)
+# All tests (681 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
@@ -241,6 +251,9 @@ python -m unittest discover tests/joypad -v
 
 # Cartridge tests (55 tests)
 python -m unittest discover tests/cartridge -v
+
+# Frontend tests (19 tests)
+python -m unittest discover tests/frontend -v
 
 # Timer, serial, memory tests
 python -m unittest discover tests/timer -v
@@ -372,7 +385,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-662 tests passing as of February 28, 2026.
+681 tests passing as of February 28, 2026.
 
 ### Blargg Test ROM Validation
 
@@ -388,6 +401,11 @@ Tetris title screen renders correctly via ASCII framebuffer:
 - Run with: `python run_tetris.py`
 - ~12M T-cycles (~3s GB time) reaches the title screen with TETRIS logo, menu options, and copyright
 - LCDC=0xD3 (LCD on, BG on, sprites on, window on)
+
+Interactive pygame frontend:
+- Run with: `python run_pygame.py rom/Tetris.gb` (optionally `--scale 4`)
+- Renders at ~59.7 fps with classic DMG green palette
+- WASD for d-pad, J/K for B/A, Enter for Start, Delete for Select, Escape to quit
 
 Two bugs were found and fixed during Tetris integration:
 1. **VRAM/OAM access restrictions**: Must only apply when LCD is enabled (LCDC bit 7 = 1). When LCD is off, VRAM/OAM are freely accessible. Without this fix, games that disable LCD to write VRAM (standard practice) would have writes silently dropped if the PPU happened to be in mode 3 when LCD was turned off.
