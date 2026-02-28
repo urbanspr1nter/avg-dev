@@ -81,9 +81,17 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `test_remaining_opcodes.py`: Conditional JP, ADC n8, ADD SP, DAA tests
   - `test_cb_opcodes.py`: All 11 CB operation types with register, (HL), and flag tests
   - `test_cycle_accuracy.py`: Cycle accuracy verification for all opcodes against Opcodes.json (~500 checks)
-- `tests/cartridge/`: Cartridge and MBC1 bank switching tests (55 tests)
+- `src/cartridge/mbc.py`: MBC strategy classes (NoMBC, MBC1, MBC3)
+  - Strategy pattern: Cartridge delegates banking logic to the correct MBC class
+  - `NoMBC`: ROM ONLY (type 0x00), flat access, writes ignored
+  - `MBC1`: 5-bit ROM bank, 2-bit RAM bank, banking mode, cartridge RAM
+  - `MBC3`: 7-bit ROM bank, 4 RAM banks, optional RTC with latch mechanism
+  - RTC uses host `time.time()` — latch freezes a snapshot into 5 registers (S/M/H/DL/DH)
+
+- `tests/cartridge/`: Cartridge, MBC1, and MBC3 tests (99 tests)
   - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
   - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
+  - `test_mbc3.py`: MBC3 ROM banking (7-bit), RAM banking, RTC latch/halt/overflow, Memory integration
 - `tests/ppu/`: PPU tests (122 tests)
   - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration, BG rendering, tile decoding, scrolling, tile addressing, window rendering, sprite rendering, STAT interrupts, OAM DMA, VRAM/OAM access restrictions, ASCII output
 - `tests/joypad/`: Joypad tests (34 tests)
@@ -237,7 +245,7 @@ To make the work more digestible and manageable, we follow this approach:
 ## Commands to Run Tests
 
 ```bash
-# All tests (681 tests)
+# All tests (725 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
@@ -249,7 +257,7 @@ python -m unittest discover tests/ppu -v
 # Joypad tests (34 tests)
 python -m unittest discover tests/joypad -v
 
-# Cartridge tests (55 tests)
+# Cartridge tests (99 tests)
 python -m unittest discover tests/cartridge -v
 
 # Frontend tests (19 tests)
@@ -385,7 +393,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-681 tests passing as of February 28, 2026.
+725 tests passing as of February 28, 2026.
 
 ### Blargg Test ROM Validation
 

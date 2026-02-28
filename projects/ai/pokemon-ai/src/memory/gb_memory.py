@@ -108,6 +108,10 @@ class Memory:
         if address <= 0x7FFF and self._cartridge is not None:
             return self._cartridge.read(address)
 
+        # External RAM: delegate to cartridge when one is loaded
+        if 0xA000 <= address <= 0xBFFF and self._cartridge is not None:
+            return self._cartridge.read(address)
+
         # VRAM/OAM access restrictions by PPU mode (only when LCD is enabled)
         if self._ppu is not None and (self._ppu._lcdc & 0x80):
             if 0x8000 <= address <= 0x9FFF and self._ppu._mode == 3:
@@ -146,6 +150,11 @@ class Memory:
         """
         # ROM range: forward to cartridge for MBC register handling
         if address <= 0x7FFF and self._cartridge is not None:
+            self._cartridge.write(address, value)
+            return
+
+        # External RAM: forward to cartridge when one is loaded
+        if 0xA000 <= address <= 0xBFFF and self._cartridge is not None:
             self._cartridge.write(address, value)
             return
 

@@ -265,6 +265,59 @@ The interrupt vector is at **0x0060** (lowest priority of all 5 interrupt source
 | `src/joypad/joypad.py` | Joypad class with button state, select-line multiplexing, interrupt firing |
 | `tests/joypad/test_joypad.py` | Register read/write, all 8 buttons, multiplexing, interrupts, memory/GameBoy integration |
 
+## Cartridge and Memory Bank Controllers (MBCs)
+
+The Game Boy CPU can only address 32 KB of ROM (0x0000-0x7FFF). Games larger than 32 KB use an **MBC chip** on the cartridge to swap 16 KB ROM banks into the 0x4000-0x7FFF window. Some MBCs also provide external RAM (0xA000-0xBFFF) and hardware features like a real-time clock.
+
+### Architecture: Strategy Pattern
+
+The `Cartridge` class owns header parsing, ROM data, and checksum validation. Banking logic is delegated to an MBC strategy object (`self._mbc`), selected at load time based on the cartridge type byte (0x0147):
+
+| Cartridge type | MBC class | Features |
+|----------------|-----------|----------|
+| 0x00 | `NoMBC` | ROM ONLY, flat access, writes ignored |
+| 0x01-0x03 | `MBC1` | 5-bit ROM bank (32 banks max), 2-bit RAM bank, banking mode |
+| 0x0F-0x13 | `MBC3` | 7-bit ROM bank (128 banks max), 4 RAM banks, optional RTC |
+
+Both `Cartridge.read()` and `Cartridge.write()` delegate to `self._mbc.read()` / `self._mbc.write()`. The Memory bus dispatches 0x0000-0x7FFF and 0xA000-0xBFFF to the cartridge.
+
+### MBC1
+
+- **ROM banking:** Lower 5 bits of write to 0x2000-0x3FFF select ROM bank. Bank 0 maps to bank 1 (hardware quirk). Wraps modulo number of banks.
+- **RAM banking:** 2-bit bank select via 0x4000-0x5FFF. Up to 4 banks (32 KB).
+- **Banking mode:** Bit 0 of write to 0x6000-0x7FFF selects ROM mode (0) or RAM mode (1).
+- **RAM enable:** Write 0x0A to 0x0000-0x1FFF to enable, any other value to disable.
+
+### MBC3
+
+- **ROM banking:** Lower 7 bits of write to 0x2000-0x3FFF. Bank 0→1 quirk. Up to 128 banks (2 MB).
+- **RAM banking:** Write 0x00-0x03 to 0x4000-0x5FFF selects one of 4 RAM banks (8 KB each).
+- **RTC register select:** Write 0x08-0x0C to 0x4000-0x5FFF maps the 0xA000-0xBFFF window to an RTC register instead of RAM.
+- **RTC registers:**
+
+| Value | Register | Range |
+|-------|----------|-------|
+| 0x08 | Seconds | 0-59 |
+| 0x09 | Minutes | 0-59 |
+| 0x0A | Hours | 0-23 |
+| 0x0B | Day Low | 0-255 (lower 8 bits of day counter) |
+| 0x0C | Day High | bit 0: day bit 8, bit 6: halt, bit 7: day overflow (>511) |
+
+- **RTC latch:** Write 0x00 then 0x01 to 0x6000-0x7FFF freezes the current time into the readable registers. The clock keeps ticking in the background.
+- **RTC timekeeping:** Uses host `time.time()` rather than T-cycle counting. On latch, computes elapsed seconds since the base timestamp and decomposes into S/M/H/D.
+- **RAM enable:** Same as MBC1 (write 0x0A to 0x0000-0x1FFF).
+
+### Implementation files
+
+| File | Purpose |
+|------|---------|
+| `src/cartridge/gb_cartridge.py` | Cartridge class — header parsing, ROM data, delegates to MBC strategy |
+| `src/cartridge/mbc.py` | MBC strategy classes: `NoMBC`, `MBC1`, `MBC3` |
+| `src/memory/gb_memory.py` | Memory bus — dispatches 0x0000-0x7FFF and 0xA000-0xBFFF to cartridge |
+| `tests/cartridge/test_gb_cartridge.py` | Header parsing, checksum, error handling |
+| `tests/cartridge/test_mbc1.py` | MBC1 ROM/RAM banking, registers, memory integration |
+| `tests/cartridge/test_mbc3.py` | MBC3 ROM banking, RAM, RTC (latch/halt/overflow/write), memory integration (44 tests) |
+
 ## Frontend and Timing
 
 The emulator includes a pygame-based GUI frontend that renders the PPU framebuffer in real-time and maps keyboard input to the joypad. The frontend is a thin layer — the GameBoy core has no knowledge of it.
