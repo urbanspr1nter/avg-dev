@@ -63,6 +63,7 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Frame-based timing: runs 70,224 T-cycles per frame (~16.74ms), sleeps for remainder to hit ~59.7 fps
   - Renders PPU framebuffer (shade values 0-3) using classic DMG green palette
   - Keyboard input mapped to joypad: WASD (d-pad), J/K (B/A), Enter (Start), Delete (Select)
+  - Fast-forward: hold Space for 3x speed (runs 3 emulation frames per rendered frame)
   - GameBoy core has no knowledge of the frontend — frontend depends on core, not vice versa
   - Designed for modularity: future HTML5/REST frontend uses the same `gb.run()` / `gb.get_framebuffer()` / `gb.joypad.press()` interface
 
@@ -88,10 +89,11 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `MBC3`: 7-bit ROM bank, 4 RAM banks, optional RTC with latch mechanism
   - RTC uses host `time.time()` — latch freezes a snapshot into 5 registers (S/M/H/DL/DH)
 
-- `tests/cartridge/`: Cartridge, MBC1, and MBC3 tests (99 tests)
+- `tests/cartridge/`: Cartridge, MBC1, MBC3, and battery save tests (117 tests)
   - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
   - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
   - `test_mbc3.py`: MBC3 ROM banking (7-bit), RAM banking, RTC latch/halt/overflow, Memory integration
+  - `test_battery.py`: Battery save/load (.sav files), has_battery detection, cross-bank persistence
 - `tests/ppu/`: PPU tests (122 tests)
   - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration, BG rendering, tile decoding, scrolling, tile addressing, window rendering, sprite rendering, STAT interrupts, OAM DMA, VRAM/OAM access restrictions, ASCII output
 - `tests/joypad/`: Joypad tests (34 tests)
@@ -245,7 +247,7 @@ To make the work more digestible and manageable, we follow this approach:
 ## Commands to Run Tests
 
 ```bash
-# All tests (725 tests)
+# All tests (743 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
@@ -257,7 +259,7 @@ python -m unittest discover tests/ppu -v
 # Joypad tests (34 tests)
 python -m unittest discover tests/joypad -v
 
-# Cartridge tests (99 tests)
+# Cartridge tests (117 tests)
 python -m unittest discover tests/cartridge -v
 
 # Frontend tests (19 tests)
@@ -393,7 +395,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-725 tests passing as of February 28, 2026.
+743 tests passing as of February 28, 2026.
 
 ### Blargg Test ROM Validation
 
@@ -414,6 +416,16 @@ Interactive pygame frontend:
 - Run with: `python run_pygame.py rom/Tetris.gb` (optionally `--scale 4`)
 - Renders at ~59.7 fps with classic DMG green palette
 - WASD for d-pad, J/K for B/A, Enter for Start, Delete for Select, Escape to quit
+- Hold Space for 3x fast-forward
+
+### Real Game Validation: Pokemon Red
+
+Pokemon Red loads and runs with MBC3 bank switching and cartridge RAM:
+- Run with: `python run_pygame.py rom/Pokemon-Red.gb`
+- MBC3+RAM+BATTERY (type 0x13), 1 MB ROM (64 banks), 32 KB RAM (4 banks)
+- Battery saves: cartridge RAM saved to `.sav` file on quit (Escape, window close, or CTRL-C via try/finally)
+- Save file loaded automatically on startup if present
+- Save format: raw byte dump of cartridge RAM, compatible with other emulators
 
 Two bugs were found and fixed during Tetris integration:
 1. **VRAM/OAM access restrictions**: Must only apply when LCD is enabled (LCDC bit 7 = 1). When LCD is off, VRAM/OAM are freely accessible. Without this fix, games that disable LCD to write VRAM (standard practice) would have writes silently dropped if the PPU happened to be in mode 3 when LCD was turned off.
