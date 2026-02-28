@@ -17,6 +17,7 @@ DMG_PALETTE = (
 # Game Boy timing
 CYCLES_PER_FRAME = 70_224          # 154 scanlines × 456 T-cycles
 FRAME_DURATION = 70_224 / 4_194_304  # ~16.74ms → ~59.7 fps
+FAST_FORWARD_MULTIPLIER = 3        # Hold Space for 3x speed
 
 # Keyboard → joypad button mapping
 KEY_MAP = {
@@ -43,6 +44,7 @@ class PygameFrontend:
         self._gb = gameboy
         self._scale = scale
         self._running = False
+        self._fast_forward = False
 
         pygame.init()
         self._screen = pygame.display.set_mode(
@@ -70,9 +72,12 @@ class PygameFrontend:
             # 3. Render framebuffer to the window
             self._render_frame()
 
-            # 4. Throttle to real-time
+            # 4. Throttle to real-time (or fast-forward speed)
             elapsed = time.perf_counter() - frame_start
-            remaining = FRAME_DURATION - elapsed
+            target_duration = FRAME_DURATION
+            if self._fast_forward:
+                target_duration = FRAME_DURATION / FAST_FORWARD_MULTIPLIER
+            remaining = target_duration - elapsed
             if remaining > 0:
                 time.sleep(remaining)
 
@@ -86,13 +91,19 @@ class PygameFrontend:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self._running = False
-                button = KEY_MAP.get(event.key)
-                if button:
-                    self._gb.joypad.press(button)
+                elif event.key == pygame.K_SPACE:
+                    self._fast_forward = True
+                else:
+                    button = KEY_MAP.get(event.key)
+                    if button:
+                        self._gb.joypad.press(button)
             elif event.type == pygame.KEYUP:
-                button = KEY_MAP.get(event.key)
-                if button:
-                    self._gb.joypad.release(button)
+                if event.key == pygame.K_SPACE:
+                    self._fast_forward = False
+                else:
+                    button = KEY_MAP.get(event.key)
+                    if button:
+                        self._gb.joypad.release(button)
 
     def _render_frame(self):
         """Blit the GB framebuffer onto the pygame window."""
