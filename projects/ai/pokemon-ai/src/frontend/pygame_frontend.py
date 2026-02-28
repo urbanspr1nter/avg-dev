@@ -65,19 +65,20 @@ class PygameFrontend:
             # 1. Process input events
             self._handle_events()
 
-            # 2. Run one frame of emulation (70,224 T-cycles)
-            target = self._gb.cpu.current_cycles + CYCLES_PER_FRAME
-            self._gb.run(max_cycles=target)
+            # 2. Run emulation frames
+            #    Normal: 1 frame, then render. Fast-forward: run N frames,
+            #    only render the last one (rendering is the bottleneck).
+            frames_to_run = FAST_FORWARD_MULTIPLIER if self._fast_forward else 1
+            for _ in range(frames_to_run):
+                target = self._gb.cpu.current_cycles + CYCLES_PER_FRAME
+                self._gb.run(max_cycles=target)
 
             # 3. Render framebuffer to the window
             self._render_frame()
 
-            # 4. Throttle to real-time (or fast-forward speed)
+            # 4. Throttle to real-time
             elapsed = time.perf_counter() - frame_start
-            target_duration = FRAME_DURATION
-            if self._fast_forward:
-                target_duration = FRAME_DURATION / FAST_FORWARD_MULTIPLIER
-            remaining = target_duration - elapsed
+            remaining = FRAME_DURATION - elapsed
             if remaining > 0:
                 time.sleep(remaining)
 
