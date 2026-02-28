@@ -28,10 +28,17 @@ def main():
     print(f"Type:  {cart.cartridge_type_name}")
     print(f"Size:  {cart.rom_size // 1024} KB")
 
+    if cart.load_battery():
+        print(f"Save:  loaded from {cart.sav_path}")
+
     gb.init_post_boot_state()
 
     frontend = PygameFrontend(gb, scale=args.scale)
-    frontend.run()
+    try:
+        frontend.run()
+    finally:
+        if cart.save_battery():
+            print(f"Save:  written to {cart.sav_path}")
 
 
 if __name__ == "__main__":

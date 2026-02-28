@@ -1,4 +1,9 @@
+import os
+
 from src.cartridge.mbc import NoMBC, MBC1, MBC3
+
+# Cartridge types that have a battery (RAM contents persist across power cycles)
+BATTERY_TYPES = {0x03, 0x06, 0x09, 0x0F, 0x10, 0x13, 0x1B, 0x1E}
 
 
 class Cartridge:
@@ -43,6 +48,7 @@ class Cartridge:
     }
 
     def __init__(self, rom_path: str):
+        self._rom_path = rom_path
         with open(rom_path, "rb") as f:
             self._rom_data = f.read()
 
@@ -165,6 +171,40 @@ class Cartridge:
             f"Checksum:       0x{self.header_checksum:02X} ({checksum_status})",
         ]
         print("\n".join(lines))
+
+    @property
+    def has_battery(self):
+        """True if this cartridge type has battery-backed RAM."""
+        return self.cartridge_type in BATTERY_TYPES
+
+    @property
+    def sav_path(self):
+        """Path to the .sav file (derived from ROM path)."""
+        base, _ = os.path.splitext(self._rom_path)
+        return base + ".sav"
+
+    def load_battery(self):
+        """Load cartridge RAM from .sav file if it exists."""
+        ram = getattr(self._mbc, '_ram', None)
+        if not self.has_battery or ram is None:
+            return False
+        if not os.path.exists(self.sav_path):
+            return False
+        with open(self.sav_path, "rb") as f:
+            data = f.read()
+        # Copy into existing RAM bytearray (truncate or pad to fit)
+        size = min(len(data), len(ram))
+        ram[:size] = data[:size]
+        return True
+
+    def save_battery(self):
+        """Save cartridge RAM to .sav file."""
+        ram = getattr(self._mbc, '_ram', None)
+        if not self.has_battery or ram is None:
+            return False
+        with open(self.sav_path, "wb") as f:
+            f.write(ram)
+        return True
 
     def validate_header_checksum(self) -> bool:
         """Verify the header checksum at 0x014D.
