@@ -43,6 +43,18 @@ class Joypad:
         self._buttons = 0x0F     # Bits 0-3: no action buttons pressed (all high)
         self._memory = None      # Set by Memory.load_joypad() for IF access
 
+    def save_state(self):
+        return {
+            'select': self._select,
+            'dpad': self._dpad,
+            'buttons': self._buttons,
+        }
+
+    def load_state(self, state):
+        self._select = state['select']
+        self._dpad = state['dpad']
+        self._buttons = state['buttons']
+
     def read(self, address):
         """Read the joypad register (0xFF00)."""
         result = 0xC0 | self._select  # Bits 7-6 always 1, plus select lines

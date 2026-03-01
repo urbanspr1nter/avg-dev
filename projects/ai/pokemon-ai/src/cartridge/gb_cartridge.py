@@ -210,6 +210,12 @@ class Cartridge:
             f.write(ram)
         return True
 
+    def save_state(self):
+        return {'mbc': self._mbc.save_state()}
+
+    def load_state(self, state):
+        self._mbc.load_state(state['mbc'])
+
     def validate_header_checksum(self) -> bool:
         """Verify the header checksum at 0x014D.
 

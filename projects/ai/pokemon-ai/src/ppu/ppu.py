@@ -49,6 +49,45 @@ class PPU:
         self._framebuffer = [[0] * 160 for _ in range(144)]
         self._window_line = 0   # Internal window line counter
 
+    def save_state(self):
+        return {
+            'lcdc': self._lcdc,
+            'stat': self._stat,
+            'scy': self._scy,
+            'scx': self._scx,
+            'ly': self._ly,
+            'lyc': self._lyc,
+            'dma': self._dma,
+            'bgp': self._bgp,
+            'obp0': self._obp0,
+            'obp1': self._obp1,
+            'wy': self._wy,
+            'wx': self._wx,
+            'dot': self._dot,
+            'mode': self._mode,
+            'stat_irq_line': self._stat_irq_line,
+            'window_line': self._window_line,
+        }
+
+    def load_state(self, state):
+        self._lcdc = state['lcdc']
+        self._stat = state['stat']
+        self._scy = state['scy']
+        self._scx = state['scx']
+        self._ly = state['ly']
+        self._lyc = state['lyc']
+        self._dma = state['dma']
+        self._bgp = state['bgp']
+        self._obp0 = state['obp0']
+        self._obp1 = state['obp1']
+        self._wy = state['wy']
+        self._wx = state['wx']
+        self._dot = state['dot']
+        self._mode = state['mode']
+        self._stat_irq_line = state['stat_irq_line']
+        self._window_line = state['window_line']
+        self._framebuffer = [[0] * 160 for _ in range(144)]
+
     # ------------------------------------------------------------------ #
     #  Register read
     # ------------------------------------------------------------------ #

@@ -206,6 +206,61 @@ class PulseChannel:
             if value & 0x80:  # Trigger
                 self.trigger()
 
+    def save_state(self):
+        state = {
+            'enabled': self._enabled,
+            'dac_enabled': self._dac_enabled,
+            'nrx0': self._nrx0,
+            'nrx1': self._nrx1,
+            'nrx2': self._nrx2,
+            'nrx3': self._nrx3,
+            'nrx4': self._nrx4,
+            'freq_timer': self._freq_timer,
+            'duty_pos': self._duty_pos,
+            'period': self._period,
+            'length_counter': self._length_counter,
+            'length_enabled': self._length_enabled,
+            'volume': self._volume,
+            'env_timer': self._env_timer,
+            'env_pace': self._env_pace,
+            'env_direction': self._env_direction,
+        }
+        if self._has_sweep:
+            state['sweep_shadow'] = self._sweep_shadow
+            state['sweep_timer'] = self._sweep_timer
+            state['sweep_enabled'] = self._sweep_enabled
+            state['sweep_pace'] = self._sweep_pace
+            state['sweep_direction'] = self._sweep_direction
+            state['sweep_step'] = self._sweep_step
+            state['sweep_negate_used'] = self._sweep_negate_used
+        return state
+
+    def load_state(self, state):
+        self._enabled = state['enabled']
+        self._dac_enabled = state['dac_enabled']
+        self._nrx0 = state['nrx0']
+        self._nrx1 = state['nrx1']
+        self._nrx2 = state['nrx2']
+        self._nrx3 = state['nrx3']
+        self._nrx4 = state['nrx4']
+        self._freq_timer = state['freq_timer']
+        self._duty_pos = state['duty_pos']
+        self._period = state['period']
+        self._length_counter = state['length_counter']
+        self._length_enabled = state['length_enabled']
+        self._volume = state['volume']
+        self._env_timer = state['env_timer']
+        self._env_pace = state['env_pace']
+        self._env_direction = state['env_direction']
+        if self._has_sweep:
+            self._sweep_shadow = state['sweep_shadow']
+            self._sweep_timer = state['sweep_timer']
+            self._sweep_enabled = state['sweep_enabled']
+            self._sweep_pace = state['sweep_pace']
+            self._sweep_direction = state['sweep_direction']
+            self._sweep_step = state['sweep_step']
+            self._sweep_negate_used = state['sweep_negate_used']
+
     def power_off(self):
         """Reset all state when APU is powered off."""
         self._enabled = False

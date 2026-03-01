@@ -96,6 +96,12 @@ class Memory:
         if hasattr(self, '_cpu') and self._cpu:
             self._cpu._apu = apu
 
+    def save_state(self):
+        return {'memory': bytes(self.memory)}
+
+    def load_state(self, state):
+        self.memory = list(state['memory'])
+
     def _map_address(self, address: int) -> int:
         """
         Map a logical address to the underlying array index.

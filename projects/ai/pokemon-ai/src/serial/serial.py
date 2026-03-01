@@ -15,6 +15,18 @@ class Serial:
         self._sc = 0x00           # Serial control (0xFF02)
         self._output_buffer = []  # Captured output bytes
 
+    def save_state(self):
+        return {
+            'sb': self._sb,
+            'sc': self._sc,
+            'output_buffer': list(self._output_buffer),
+        }
+
+    def load_state(self, state):
+        self._sb = state['sb']
+        self._sc = state['sc']
+        self._output_buffer = list(state['output_buffer'])
+
     def read(self, address):
         """Read a serial register."""
         if address == 0xFF01:

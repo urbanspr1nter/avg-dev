@@ -127,6 +127,40 @@ class WaveChannel:
         """Write a byte to wave RAM (0xFF30-0xFF3F)."""
         self._wave_ram[address - 0xFF30] = value & 0xFF
 
+    def save_state(self):
+        return {
+            'enabled': self._enabled,
+            'dac_enabled': self._dac_enabled,
+            'nr30': self._nr30,
+            'nr31': self._nr31,
+            'nr32': self._nr32,
+            'nr33': self._nr33,
+            'nr34': self._nr34,
+            'wave_ram': bytes(self._wave_ram),
+            'freq_timer': self._freq_timer,
+            'wave_pos': self._wave_pos,
+            'period': self._period,
+            'sample_buffer': self._sample_buffer,
+            'length_counter': self._length_counter,
+            'length_enabled': self._length_enabled,
+        }
+
+    def load_state(self, state):
+        self._enabled = state['enabled']
+        self._dac_enabled = state['dac_enabled']
+        self._nr30 = state['nr30']
+        self._nr31 = state['nr31']
+        self._nr32 = state['nr32']
+        self._nr33 = state['nr33']
+        self._nr34 = state['nr34']
+        self._wave_ram = bytearray(state['wave_ram'])
+        self._freq_timer = state['freq_timer']
+        self._wave_pos = state['wave_pos']
+        self._period = state['period']
+        self._sample_buffer = state['sample_buffer']
+        self._length_counter = state['length_counter']
+        self._length_enabled = state['length_enabled']
+
     def power_off(self):
         """Reset all state when APU is powered off (wave RAM preserved)."""
         self._enabled = False

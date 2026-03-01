@@ -116,6 +116,34 @@ class GameBoy:
         self.apu.write(0xFF24, 0x77)  # NR50: max volume both sides
         self.apu.write(0xFF25, 0xF3)  # NR51: CH1+CH2 to both outputs
 
+    def save_state(self):
+        """Capture the complete emulator state as a serializable dict."""
+        return {
+            'version': 1,
+            'cpu': self.cpu.save_state(),
+            'memory': self.memory.save_state(),
+            'timer': self.timer.save_state(),
+            'serial': self.serial.save_state(),
+            'joypad': self.joypad.save_state(),
+            'ppu': self.ppu.save_state(),
+            'apu': self.apu.save_state(),
+            'cartridge': self.cartridge.save_state() if self.cartridge else None,
+        }
+
+    def load_state(self, state):
+        """Restore the complete emulator state from a dict."""
+        if state.get('version', 0) != 1:
+            raise ValueError(f"Incompatible save state version: {state.get('version')}")
+        self.cpu.load_state(state['cpu'])
+        self.memory.load_state(state['memory'])
+        self.timer.load_state(state['timer'])
+        self.serial.load_state(state['serial'])
+        self.joypad.load_state(state['joypad'])
+        self.ppu.load_state(state['ppu'])
+        self.apu.load_state(state['apu'])
+        if self.cartridge and state['cartridge'] is not None:
+            self.cartridge.load_state(state['cartridge'])
+
     def get_framebuffer(self):
         """Return the PPU's 160x144 framebuffer (shade values 0-3)."""
         return self.ppu.get_framebuffer()

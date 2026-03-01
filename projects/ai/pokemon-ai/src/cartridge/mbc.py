@@ -18,6 +18,12 @@ class NoMBC:
     def write(self, address, value):
         pass  # ROM ONLY: all writes silently ignored
 
+    def save_state(self):
+        return {}
+
+    def load_state(self, state):
+        pass
+
 
 class MBC1:
     """MBC1 mapper. 5-bit ROM bank, 2-bit RAM bank, banking mode."""
@@ -64,6 +70,26 @@ class MBC1:
                 ram_offset = (self._ram_bank * 0x2000) + (address - 0xA000)
                 if ram_offset < len(self._ram):
                     self._ram[ram_offset] = value
+
+
+    def save_state(self):
+        state = {
+            'rom_bank': self._rom_bank,
+            'ram_bank': self._ram_bank,
+            'ram_enabled': self._ram_enabled,
+            'banking_mode': self._banking_mode,
+        }
+        if self._ram is not None:
+            state['ram'] = bytes(self._ram)
+        return state
+
+    def load_state(self, state):
+        self._rom_bank = state['rom_bank']
+        self._ram_bank = state['ram_bank']
+        self._ram_enabled = state['ram_enabled']
+        self._banking_mode = state['banking_mode']
+        if 'ram' in state and self._ram is not None:
+            self._ram[:] = bytearray(state['ram'])
 
 
 class MBC3:
@@ -195,6 +221,36 @@ class MBC3:
             self._rtc_base_timestamp = time.time()
 
 
+    def save_state(self):
+        state = {
+            'rom_bank': self._rom_bank,
+            'ram_bank': self._ram_bank,
+            'ram_enabled': self._ram_enabled,
+            'rtc_registers': list(self._rtc_registers),
+            'rtc_latch_state': self._rtc_latch_state,
+            'rtc_halted': self._rtc_halted,
+            'rtc_base_seconds': self._rtc_base_seconds,
+        }
+        if self._ram is not None:
+            state['ram'] = bytes(self._ram)
+        return state
+
+    def load_state(self, state):
+        self._rom_bank = state['rom_bank']
+        self._ram_bank = state['ram_bank']
+        self._ram_enabled = state['ram_enabled']
+        self._rtc_registers = list(state['rtc_registers'])
+        self._rtc_latch_state = state['rtc_latch_state']
+        self._rtc_halted = state['rtc_halted']
+        self._rtc_base_seconds = state['rtc_base_seconds']
+        if not self._rtc_halted and self._has_rtc:
+            self._rtc_base_timestamp = time.time()
+        else:
+            self._rtc_base_timestamp = None
+        if 'ram' in state and self._ram is not None:
+            self._ram[:] = bytearray(state['ram'])
+
+
 class MBC5:
     """MBC5 mapper. 9-bit ROM bank (up to 512 banks), 4-bit RAM bank (up to 16), optional rumble."""
 
@@ -246,3 +302,22 @@ class MBC5:
                 ram_offset = (self._ram_bank * 0x2000) + (address - 0xA000)
                 if ram_offset < len(self._ram):
                     self._ram[ram_offset] = value
+
+    def save_state(self):
+        state = {
+            'rom_bank': self._rom_bank,
+            'ram_bank': self._ram_bank,
+            'ram_enabled': self._ram_enabled,
+            'rumble': self._rumble,
+        }
+        if self._ram is not None:
+            state['ram'] = bytes(self._ram)
+        return state
+
+    def load_state(self, state):
+        self._rom_bank = state['rom_bank']
+        self._ram_bank = state['ram_bank']
+        self._ram_enabled = state['ram_enabled']
+        self._rumble = state['rumble']
+        if 'ram' in state and self._ram is not None:
+            self._ram[:] = bytearray(state['ram'])

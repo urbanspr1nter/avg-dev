@@ -101,6 +101,24 @@ class TestFrameCycleAdvancement(unittest.TestCase):
         self.assertLess(elapsed, CYCLES_PER_FRAME + 32)
 
 
+def _set_pygame_constants(mock_pg, real_pg):
+    """Set all pygame constants needed by _handle_events on a mock."""
+    mock_pg.QUIT = real_pg.QUIT
+    mock_pg.KEYDOWN = real_pg.KEYDOWN
+    mock_pg.KEYUP = real_pg.KEYUP
+    mock_pg.K_ESCAPE = real_pg.K_ESCAPE
+    mock_pg.K_SPACE = real_pg.K_SPACE
+    mock_pg.K_m = real_pg.K_m
+    mock_pg.K_1 = real_pg.K_1
+    mock_pg.K_9 = real_pg.K_9
+    mock_pg.KMOD_CTRL = real_pg.KMOD_CTRL
+    mock_pg.KMOD_ALT = real_pg.KMOD_ALT
+    mock_pg.KMOD_SHIFT = real_pg.KMOD_SHIFT
+    # Joypad keys
+    for attr in ('K_k', 'K_j', 'K_w', 'K_a', 'K_s', 'K_d', 'K_RETURN', 'K_DELETE'):
+        setattr(mock_pg, attr, getattr(real_pg, attr))
+
+
 class TestHandleEvents(unittest.TestCase):
     """Test event handling logic (mocked pygame)."""
 
@@ -125,19 +143,7 @@ class TestHandleEvents(unittest.TestCase):
         gb.joypad.press = MagicMock()
 
         with patch('src.frontend.pygame_frontend.pygame') as mock_pg:
-            # Map mock constants to real values so KEY_MAP works
-            mock_pg.K_k = real_pg.K_k
-            mock_pg.K_j = real_pg.K_j
-            mock_pg.K_w = real_pg.K_w
-            mock_pg.K_a = real_pg.K_a
-            mock_pg.K_s = real_pg.K_s
-            mock_pg.K_d = real_pg.K_d
-            mock_pg.K_RETURN = real_pg.K_RETURN
-            mock_pg.K_DELETE = real_pg.K_DELETE
-            mock_pg.K_ESCAPE = real_pg.K_ESCAPE
-            mock_pg.QUIT = real_pg.QUIT
-            mock_pg.KEYDOWN = real_pg.KEYDOWN
-            mock_pg.KEYUP = real_pg.KEYUP
+            _set_pygame_constants(mock_pg, real_pg)
 
             from src.frontend.pygame_frontend import PygameFrontend
             frontend = PygameFrontend(gb, scale=1)
@@ -145,6 +151,7 @@ class TestHandleEvents(unittest.TestCase):
             event = MagicMock()
             event.type = real_pg.KEYDOWN
             event.key = real_pg.K_k  # 'a' button
+            event.mod = 0
             mock_pg.event.get.return_value = [event]
 
             frontend._handle_events()
@@ -160,18 +167,7 @@ class TestHandleEvents(unittest.TestCase):
         gb.joypad.release = MagicMock()
 
         with patch('src.frontend.pygame_frontend.pygame') as mock_pg:
-            mock_pg.K_k = real_pg.K_k
-            mock_pg.K_j = real_pg.K_j
-            mock_pg.K_w = real_pg.K_w
-            mock_pg.K_a = real_pg.K_a
-            mock_pg.K_s = real_pg.K_s
-            mock_pg.K_d = real_pg.K_d
-            mock_pg.K_RETURN = real_pg.K_RETURN
-            mock_pg.K_DELETE = real_pg.K_DELETE
-            mock_pg.K_ESCAPE = real_pg.K_ESCAPE
-            mock_pg.QUIT = real_pg.QUIT
-            mock_pg.KEYDOWN = real_pg.KEYDOWN
-            mock_pg.KEYUP = real_pg.KEYUP
+            _set_pygame_constants(mock_pg, real_pg)
 
             from src.frontend.pygame_frontend import PygameFrontend
             frontend = PygameFrontend(gb, scale=1)
@@ -194,10 +190,7 @@ class TestHandleEvents(unittest.TestCase):
         gb.joypad.press = MagicMock()
 
         with patch('src.frontend.pygame_frontend.pygame') as mock_pg:
-            mock_pg.K_ESCAPE = real_pg.K_ESCAPE
-            mock_pg.QUIT = real_pg.QUIT
-            mock_pg.KEYDOWN = real_pg.KEYDOWN
-            mock_pg.KEYUP = real_pg.KEYUP
+            _set_pygame_constants(mock_pg, real_pg)
 
             from src.frontend.pygame_frontend import PygameFrontend
             frontend = PygameFrontend(gb, scale=1)
@@ -205,6 +198,7 @@ class TestHandleEvents(unittest.TestCase):
             event = MagicMock()
             event.type = real_pg.KEYDOWN
             event.key = real_pg.K_F1  # Not mapped
+            event.mod = 0
             mock_pg.event.get.return_value = [event]
 
             frontend._handle_events()
@@ -219,10 +213,7 @@ class TestHandleEvents(unittest.TestCase):
         gb = GameBoy()
 
         with patch('src.frontend.pygame_frontend.pygame') as mock_pg:
-            mock_pg.K_ESCAPE = real_pg.K_ESCAPE
-            mock_pg.QUIT = real_pg.QUIT
-            mock_pg.KEYDOWN = real_pg.KEYDOWN
-            mock_pg.KEYUP = real_pg.KEYUP
+            _set_pygame_constants(mock_pg, real_pg)
 
             from src.frontend.pygame_frontend import PygameFrontend
             frontend = PygameFrontend(gb, scale=1)
@@ -245,9 +236,7 @@ class TestHandleEvents(unittest.TestCase):
         gb = GameBoy()
 
         with patch('src.frontend.pygame_frontend.pygame') as mock_pg:
-            mock_pg.QUIT = real_pg.QUIT
-            mock_pg.KEYDOWN = real_pg.KEYDOWN
-            mock_pg.KEYUP = real_pg.KEYUP
+            _set_pygame_constants(mock_pg, real_pg)
 
             from src.frontend.pygame_frontend import PygameFrontend
             frontend = PygameFrontend(gb, scale=1)

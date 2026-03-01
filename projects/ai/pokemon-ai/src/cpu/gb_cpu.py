@@ -653,6 +653,43 @@ class CPU:
         # CB-prefixed opcode dispatch table (256 entries)
         self.cb_opcode_handlers = build_cb_dispatch()
 
+    def save_state(self):
+        return {
+            'registers': {
+                'AF': self.registers.AF,
+                'BC': self.registers.BC,
+                'DE': self.registers.DE,
+                'HL': self.registers.HL,
+                'SP': self.registers.SP,
+                'PC': self.registers.PC,
+            },
+            'current_cycles': self.current_cycles,
+            'interrupts': {
+                'ime': self.interrupts.ime,
+                'halted': self.interrupts.halted,
+                'ime_pending': self.interrupts.ime_pending,
+                'halt_bug': self.interrupts.halt_bug,
+                'ime_handled_by_instruction': self.interrupts.ime_handled_by_instruction,
+            },
+        }
+
+    def load_state(self, state):
+        regs = state['registers']
+        self.registers.AF = regs['AF']
+        self.registers.BC = regs['BC']
+        self.registers.DE = regs['DE']
+        self.registers.HL = regs['HL']
+        self.registers.SP = regs['SP']
+        self.registers.PC = regs['PC']
+        self.current_cycles = state['current_cycles']
+        irq = state['interrupts']
+        self.interrupts.ime = irq['ime']
+        self.interrupts.halted = irq['halted']
+        self.interrupts.ime_pending = irq['ime_pending']
+        self.interrupts.halt_bug = irq['halt_bug']
+        self.interrupts.ime_handled_by_instruction = irq['ime_handled_by_instruction']
+        self.operand_values = []
+
     def get_register(self, code):
         """Return the value of a register or its high/low byte."""
         if code == "AF":

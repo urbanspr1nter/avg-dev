@@ -259,6 +259,37 @@ class APU:
         self._nr50 = 0
         self._nr51 = 0
 
+    def save_state(self):
+        return {
+            'ch1': self._ch1.save_state(),
+            'ch2': self._ch2.save_state(),
+            'ch3': self._ch3.save_state(),
+            'ch4': self._ch4.save_state(),
+            'nr50': self._nr50,
+            'nr51': self._nr51,
+            'power': self._power,
+            'fs_counter': self._fs_counter,
+            'fs_step': self._fs_step,
+            'sample_counter': self._sample_counter,
+            'hpf_capacitor_left': self._hpf_capacitor_left,
+            'hpf_capacitor_right': self._hpf_capacitor_right,
+        }
+
+    def load_state(self, state):
+        self._ch1.load_state(state['ch1'])
+        self._ch2.load_state(state['ch2'])
+        self._ch3.load_state(state['ch3'])
+        self._ch4.load_state(state['ch4'])
+        self._nr50 = state['nr50']
+        self._nr51 = state['nr51']
+        self._power = state['power']
+        self._fs_counter = state['fs_counter']
+        self._fs_step = state['fs_step']
+        self._sample_counter = state['sample_counter']
+        self._hpf_capacitor_left = state['hpf_capacitor_left']
+        self._hpf_capacitor_right = state['hpf_capacitor_right']
+        self._sample_buffer = []
+
     def drain_samples(self):
         """Return pending samples and clear the buffer.
 

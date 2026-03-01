@@ -1,4 +1,6 @@
 import array
+import os
+import pickle
 import time
 import wave
 
@@ -42,7 +44,7 @@ class PygameFrontend:
     The GameBoy core has no knowledge of this class.
     """
 
-    def __init__(self, gameboy, scale=3, wav_path=None):
+    def __init__(self, gameboy, scale=3, wav_path=None, rom_path=None):
         self._gb = gameboy
         self._scale = scale
         self._running = False
@@ -50,6 +52,7 @@ class PygameFrontend:
         self._audio_enabled = True
         self._wav_path = wav_path
         self._wav_file = None
+        self._rom_path = rom_path
 
         pygame.mixer.pre_init(frequency=48000, size=-16, channels=2, buffer=1024)
         pygame.init()
@@ -122,6 +125,11 @@ class PygameFrontend:
                     self._fast_forward = True
                 elif event.key == pygame.K_m:
                     self._audio_enabled = not self._audio_enabled
+                elif (event.mod & pygame.KMOD_CTRL) and pygame.K_1 <= event.key <= pygame.K_9:
+                    self._save_state(event.key - pygame.K_1 + 1)
+                elif not (event.mod & (pygame.KMOD_CTRL | pygame.KMOD_ALT | pygame.KMOD_SHIFT)) \
+                        and pygame.K_1 <= event.key <= pygame.K_9:
+                    self._load_state(event.key - pygame.K_1 + 1)
                 else:
                     button = KEY_MAP.get(event.key)
                     if button:
@@ -133,6 +141,35 @@ class PygameFrontend:
                     button = KEY_MAP.get(event.key)
                     if button:
                         self._gb.joypad.release(button)
+
+    def _save_state(self, slot):
+        """Save emulator state to the given slot."""
+        if self._rom_path is None:
+            return
+        path = f"{self._rom_path}.state{slot}"
+        try:
+            state = self._gb.save_state()
+            with open(path, 'wb') as f:
+                pickle.dump(state, f)
+            print(f"State saved to slot {slot}")
+        except OSError as e:
+            print(f"Failed to save state slot {slot}: {e}")
+
+    def _load_state(self, slot):
+        """Load emulator state from the given slot."""
+        if self._rom_path is None:
+            return
+        path = f"{self._rom_path}.state{slot}"
+        if not os.path.exists(path):
+            print(f"No save state in slot {slot}")
+            return
+        try:
+            with open(path, 'rb') as f:
+                state = pickle.load(f)
+            self._gb.load_state(state)
+            print(f"State loaded from slot {slot}")
+        except (OSError, pickle.UnpicklingError, ValueError, KeyError) as e:
+            print(f"Failed to load state slot {slot}: {e}")
 
     def _drain_audio(self):
         """Convert APU sample buffer to PCM for playback and/or WAV export."""

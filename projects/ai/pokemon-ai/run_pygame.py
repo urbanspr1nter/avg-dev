@@ -38,7 +38,7 @@ def main():
 
     gb.init_post_boot_state()
 
-    frontend = PygameFrontend(gb, scale=args.scale, wav_path=args.wav)
+    frontend = PygameFrontend(gb, scale=args.scale, wav_path=args.wav, rom_path=args.rom)
     try:
         frontend.run()
     finally:

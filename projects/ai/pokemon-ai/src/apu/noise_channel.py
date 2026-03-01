@@ -147,6 +147,46 @@ class NoiseChannel:
             if value & 0x80:  # Trigger
                 self.trigger()
 
+    def save_state(self):
+        return {
+            'enabled': self._enabled,
+            'dac_enabled': self._dac_enabled,
+            'nr41': self._nr41,
+            'nr42': self._nr42,
+            'nr43': self._nr43,
+            'nr44': self._nr44,
+            'lfsr': self._lfsr,
+            'freq_timer': self._freq_timer,
+            'clock_shift': self._clock_shift,
+            'divisor_code': self._divisor_code,
+            'width_mode': self._width_mode,
+            'length_counter': self._length_counter,
+            'length_enabled': self._length_enabled,
+            'volume': self._volume,
+            'env_timer': self._env_timer,
+            'env_pace': self._env_pace,
+            'env_direction': self._env_direction,
+        }
+
+    def load_state(self, state):
+        self._enabled = state['enabled']
+        self._dac_enabled = state['dac_enabled']
+        self._nr41 = state['nr41']
+        self._nr42 = state['nr42']
+        self._nr43 = state['nr43']
+        self._nr44 = state['nr44']
+        self._lfsr = state['lfsr']
+        self._freq_timer = state['freq_timer']
+        self._clock_shift = state['clock_shift']
+        self._divisor_code = state['divisor_code']
+        self._width_mode = state['width_mode']
+        self._length_counter = state['length_counter']
+        self._length_enabled = state['length_enabled']
+        self._volume = state['volume']
+        self._env_timer = state['env_timer']
+        self._env_pace = state['env_pace']
+        self._env_direction = state['env_direction']
+
     def power_off(self):
         """Reset all state when APU is powered off."""
         self._enabled = False

@@ -84,6 +84,8 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Keyboard input mapped to joypad: WASD (d-pad), J/K (B/A), Enter (Start), Delete (Select)
   - Fast-forward: hold Space for 3x speed (runs 3 emulation frames per rendered frame)
   - Mute toggle: M key enables/disables audio output
+  - Save states: CTRL+1-9 saves to slot, 1-9 loads from slot (files: `{rom}.state{N}`, pickle format)
+  - WAV recording: `--wav FILE` flag records audio to 48kHz 16-bit stereo WAV file
   - GameBoy core has no knowledge of the frontend — frontend depends on core, not vice versa
   - Designed for modularity: future HTML5/REST frontend uses the same `gb.run()` / `gb.get_framebuffer()` / `gb.joypad.press()` interface
 
@@ -109,7 +111,12 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `MBC3`: 7-bit ROM bank, 4 RAM banks, optional RTC with latch mechanism
   - `MBC5`: 9-bit ROM bank (up to 512 banks/8MB), 4-bit RAM bank (up to 16/128KB), optional rumble, no bank-0 quirk
   - RTC uses host `time.time()` — latch freezes a snapshot into 5 registers (S/M/H/DL/DH)
+  - All components implement `save_state()`/`load_state()` for save state serialization
 
+- `tests/test_save_state.py`: Save state round-trip tests (27 tests)
+  - Per-component: PulseChannel, WaveChannel, NoiseChannel, APU, Timer, Serial, Joypad, PPU, Memory, CPU
+  - MBC classes: NoMBC, MBC1, MBC3 (with RTC), MBC5 (with rumble), RAM preservation
+  - GameBoy integration: full round-trip, version mismatch, pickle compatibility, execution continuity
 - `tests/apu/`: APU tests (174 tests)
   - `test_pulse_channel.py`: PulseChannel registers, frequency timer, duty output, length counter, envelope, sweep, trigger, power off
   - `test_wave_channel.py`: WaveChannel registers, wave RAM, frequency timer, volume shift, length counter, trigger, power off
@@ -274,7 +281,7 @@ To make the work more digestible and manageable, we follow this approach:
 ## Commands to Run Tests
 
 ```bash
-# All tests (963 tests)
+# All tests (990 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
@@ -288,6 +295,9 @@ python -m unittest discover tests/joypad -v
 
 # Cartridge tests (163 tests)
 python -m unittest discover tests/cartridge -v
+
+# Save state tests (27 tests)
+python -m unittest tests/test_save_state -v
 
 # APU tests (174 tests)
 python -m unittest discover tests/apu -v
@@ -425,7 +435,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-963 tests passing as of March 1, 2026.
+990 tests passing as of March 1, 2026.
 
 ### Blargg Test ROM Validation
 

@@ -35,6 +35,20 @@ class Timer:
         self._tac = 0x00
         self._memory = None  # Set by Memory.load_timer() for IF register access
 
+    def save_state(self):
+        return {
+            'internal_counter': self._internal_counter,
+            'tima': self._tima,
+            'tma': self._tma,
+            'tac': self._tac,
+        }
+
+    def load_state(self, state):
+        self._internal_counter = state['internal_counter']
+        self._tima = state['tima']
+        self._tma = state['tma']
+        self._tac = state['tac']
+
     def read(self, address):
         """Read a timer register."""
         if address == 0xFF04:
