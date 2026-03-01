@@ -58,12 +58,32 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Joypad interrupt (IF bit 4) on button press (1→0 transition)
   - Wired into memory bus via `load_joypad()` (same pattern as Timer/Serial)
 
+- `src/apu/apu.py`: APU (Audio Processing Unit) — 4-channel stereo sound
+  - Frame sequencer (512 Hz, 8-step cycle): clocks length counters, volume envelopes, and CH1 sweep
+  - Register dispatch for 0xFF10-0xFF3F with proper read masks (unused bits return 1)
+  - NR52 (0xFF26) power control: on/off zeroes registers, write-protects, preserves wave RAM
+  - Stereo mixing with NR50 master volume, NR51 channel panning, high-pass filter
+  - Generates 48 kHz stereo samples into a buffer; `drain_samples()` returns pending samples
+  - `tick(cycles)` called by CPU run loop (same pattern as Timer/PPU)
+
+- `src/apu/pulse_channel.py`: PulseChannel (CH1 with sweep, CH2 without)
+  - 4 duty cycles (12.5%, 25%, 50%, 75%), frequency timer, length counter, volume envelope
+  - CH1 sweep: shadow register, pace/direction/step, overflow check, negate-then-add quirk
+
+- `src/apu/wave_channel.py`: WaveChannel (CH3)
+  - 32 x 4-bit samples in wave RAM (0xFF30-0xFF3F), volume shift (mute/100%/50%/25%)
+
+- `src/apu/noise_channel.py`: NoiseChannel (CH4)
+  - 15-bit LFSR with optional 7-bit mode, divisor table, clock shift
+
 - `src/frontend/pygame_frontend.py`: Pygame GUI frontend
   - `PygameFrontend` class — thin rendering layer over the GameBoy core
   - Frame-based timing: runs 70,224 T-cycles per frame (~16.74ms), sleeps for remainder to hit ~59.7 fps
   - Renders PPU framebuffer (shade values 0-3) using classic DMG green palette
+  - Audio output: drains APU sample buffer each frame, converts to 16-bit PCM, plays via pygame.mixer
   - Keyboard input mapped to joypad: WASD (d-pad), J/K (B/A), Enter (Start), Delete (Select)
   - Fast-forward: hold Space for 3x speed (runs 3 emulation frames per rendered frame)
+  - Mute toggle: M key enables/disables audio output
   - GameBoy core has no knowledge of the frontend — frontend depends on core, not vice versa
   - Designed for modularity: future HTML5/REST frontend uses the same `gb.run()` / `gb.get_framebuffer()` / `gb.joypad.press()` interface
 
@@ -90,6 +110,11 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `MBC5`: 9-bit ROM bank (up to 512 banks/8MB), 4-bit RAM bank (up to 16/128KB), optional rumble, no bank-0 quirk
   - RTC uses host `time.time()` — latch freezes a snapshot into 5 registers (S/M/H/DL/DH)
 
+- `tests/apu/`: APU tests (174 tests)
+  - `test_pulse_channel.py`: PulseChannel registers, frequency timer, duty output, length counter, envelope, sweep, trigger, power off
+  - `test_wave_channel.py`: WaveChannel registers, wave RAM, frequency timer, volume shift, length counter, trigger, power off
+  - `test_noise_channel.py`: NoiseChannel registers, LFSR (15-bit and 7-bit), divisor table, length counter, envelope, trigger, power off
+  - `test_apu.py`: Register read masks, NR52 power control, frame sequencer timing, stereo mixing, sample generation, memory integration, GameBoy integration
 - `tests/cartridge/`: Cartridge, MBC1, MBC3, MBC5, and battery save tests (163 tests)
   - `test_gb_cartridge.py`: Header parsing, ROM access, checksum validation
   - `test_mbc1.py`: MBC1 ROM/RAM banking, mode select, edge cases
@@ -249,7 +274,7 @@ To make the work more digestible and manageable, we follow this approach:
 ## Commands to Run Tests
 
 ```bash
-# All tests (789 tests)
+# All tests (963 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
@@ -263,6 +288,9 @@ python -m unittest discover tests/joypad -v
 
 # Cartridge tests (163 tests)
 python -m unittest discover tests/cartridge -v
+
+# APU tests (174 tests)
+python -m unittest discover tests/apu -v
 
 # Frontend tests (19 tests)
 python -m unittest discover tests/frontend -v
@@ -397,7 +425,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-789 tests passing as of March 1, 2026.
+963 tests passing as of March 1, 2026.
 
 ### Blargg Test ROM Validation
 

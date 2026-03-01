@@ -388,6 +388,9 @@ class CPU:
         # already loaded, or set later by Memory.load_ppu().
         self._ppu = self.memory._ppu
 
+        # APU reference — same pattern as timer/PPU.
+        self._apu = self.memory._apu
+
         # Initialize dispatch table for opcode handlers
         self.opcode_handlers = {
             0x00: nop,
@@ -965,6 +968,8 @@ class CPU:
                         self._timer.tick(4)
                     if self._ppu:
                         self._ppu.tick(4)
+                    if self._apu:
+                        self._apu.tick(4)
                     continue
 
             # Check if we need to enable IME after the previous instruction
@@ -1084,6 +1089,8 @@ class CPU:
                 self._timer.tick(cycles_used)
             if self._ppu:
                 self._ppu.tick(cycles_used)
+            if self._apu:
+                self._apu.tick(cycles_used)
 
             # Handle delayed IME enable from EI instruction
             # This happens AFTER the instruction executes for correct EI delay timing

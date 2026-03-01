@@ -20,6 +20,11 @@ def main():
         default=3,
         help="Window scale factor (default: 3 = 480x432)",
     )
+    parser.add_argument(
+        "--wav",
+        metavar="FILE",
+        help="Record audio to a WAV file (48kHz 16-bit stereo)",
+    )
     args = parser.parse_args()
 
     gb = GameBoy()
@@ -33,7 +38,7 @@ def main():
 
     gb.init_post_boot_state()
 
-    frontend = PygameFrontend(gb, scale=args.scale)
+    frontend = PygameFrontend(gb, scale=args.scale, wav_path=args.wav)
     try:
         frontend.run()
     finally:

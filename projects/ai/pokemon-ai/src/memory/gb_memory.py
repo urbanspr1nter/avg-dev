@@ -26,6 +26,7 @@ class Memory:
         self._timer = None
         self._ppu = None
         self._joypad = None
+        self._apu = None
 
     def load_cartridge(self, cartridge):
         """Load a cartridge into the memory bus.
@@ -85,6 +86,16 @@ class Memory:
         if hasattr(self, '_cpu') and self._cpu:
             self._cpu._ppu = ppu
 
+    def load_apu(self, apu):
+        """Load an APU into the memory bus.
+
+        Reads/writes to 0xFF10-0xFF3F are delegated to the APU handler.
+        The CPU gets a reference for tick() calls.
+        """
+        self._apu = apu
+        if hasattr(self, '_cpu') and self._cpu:
+            self._cpu._apu = apu
+
     def _map_address(self, address: int) -> int:
         """
         Map a logical address to the underlying array index.
@@ -126,6 +137,8 @@ class Memory:
             return self._serial.read(address)
         if 0xFF04 <= address <= 0xFF07 and self._timer is not None:
             return self._timer.read(address)
+        if 0xFF10 <= address <= 0xFF3F and self._apu is not None:
+            return self._apu.read(address)
         if 0xFF40 <= address <= 0xFF4B and self._ppu is not None:
             return self._ppu.read(address)
 
@@ -174,6 +187,9 @@ class Memory:
             return
         if 0xFF04 <= address <= 0xFF07 and self._timer is not None:
             self._timer.write(address, value)
+            return
+        if 0xFF10 <= address <= 0xFF3F and self._apu is not None:
+            self._apu.write(address, value)
             return
         if 0xFF40 <= address <= 0xFF4B and self._ppu is not None:
             self._ppu.write(address, value)

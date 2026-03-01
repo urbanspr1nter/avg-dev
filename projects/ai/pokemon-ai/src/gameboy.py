@@ -4,6 +4,7 @@ from src.timer.gb_timer import Timer
 from src.serial.serial import Serial
 from src.ppu.ppu import PPU
 from src.joypad.joypad import Joypad
+from src.apu.apu import APU
 from src.cartridge.gb_cartridge import Cartridge
 
 
@@ -69,6 +70,10 @@ class GameBoy:
         self.ppu = PPU()
         self.memory.load_ppu(self.ppu)
 
+        # Step 7: APU — load_apu() wires memory._apu (I/O dispatch), cpu._apu (tick calls).
+        self.apu = APU()
+        self.memory.load_apu(self.apu)
+
         # Cartridge is not loaded here — call load_cartridge() with a ROM path.
         self.cartridge = None
 
@@ -104,6 +109,12 @@ class GameBoy:
         self.cpu.set_register('SP', 0xFFFE)
         self.cpu.set_register('PC', 0x0100)
         self.memory.set_value(0xFF0F, 0xE1)  # Post-boot IF
+        # Post-boot audio register state
+        self.apu.write(0xFF26, 0x80)  # NR52: power on
+        self.apu.write(0xFF11, 0x80)  # NR11: duty 50%
+        self.apu.write(0xFF12, 0xF3)  # NR12: vol 15, dec, pace 3
+        self.apu.write(0xFF24, 0x77)  # NR50: max volume both sides
+        self.apu.write(0xFF25, 0xF3)  # NR51: CH1+CH2 to both outputs
 
     def get_framebuffer(self):
         """Return the PPU's 160x144 framebuffer (shade values 0-3)."""

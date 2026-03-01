@@ -1,4 +1,6 @@
+import array
 import time
+import wave
 
 import pygame
 
@@ -40,13 +42,24 @@ class PygameFrontend:
     The GameBoy core has no knowledge of this class.
     """
 
-    def __init__(self, gameboy, scale=3):
+    def __init__(self, gameboy, scale=3, wav_path=None):
         self._gb = gameboy
         self._scale = scale
         self._running = False
         self._fast_forward = False
+        self._audio_enabled = True
+        self._wav_path = wav_path
+        self._wav_file = None
 
+        pygame.mixer.pre_init(frequency=48000, size=-16, channels=2, buffer=1024)
         pygame.init()
+        try:
+            pygame.mixer.init()
+            self._audio_channel = pygame.mixer.Channel(0)
+        except pygame.error:
+            self._audio_enabled = False
+            self._audio_channel = None
+
         self._screen = pygame.display.set_mode(
             (GB_WIDTH * scale, GB_HEIGHT * scale)
         )
@@ -59,30 +72,43 @@ class PygameFrontend:
         """Main emulation loop: run one frame, render, handle input, repeat."""
         self._running = True
 
-        while self._running:
-            frame_start = time.perf_counter()
+        if self._wav_path:
+            self._wav_file = wave.open(self._wav_path, 'wb')
+            self._wav_file.setnchannels(2)
+            self._wav_file.setsampwidth(2)  # 16-bit
+            self._wav_file.setframerate(48000)
 
-            # 1. Process input events
-            self._handle_events()
+        try:
+            while self._running:
+                frame_start = time.perf_counter()
 
-            # 2. Run emulation frames
-            #    Normal: 1 frame, then render. Fast-forward: run N frames,
-            #    only render the last one (rendering is the bottleneck).
-            frames_to_run = FAST_FORWARD_MULTIPLIER if self._fast_forward else 1
-            for _ in range(frames_to_run):
-                target = self._gb.cpu.current_cycles + CYCLES_PER_FRAME
-                self._gb.run(max_cycles=target)
+                # 1. Process input events
+                self._handle_events()
 
-            # 3. Render framebuffer to the window
-            self._render_frame()
+                # 2. Run emulation frames
+                #    Normal: 1 frame, then render. Fast-forward: run N frames,
+                #    only render the last one (rendering is the bottleneck).
+                frames_to_run = FAST_FORWARD_MULTIPLIER if self._fast_forward else 1
+                for _ in range(frames_to_run):
+                    target = self._gb.cpu.current_cycles + CYCLES_PER_FRAME
+                    self._gb.run(max_cycles=target)
 
-            # 4. Throttle to real-time
-            elapsed = time.perf_counter() - frame_start
-            remaining = FRAME_DURATION - elapsed
-            if remaining > 0:
-                time.sleep(remaining)
+                # 3. Drain audio samples
+                self._drain_audio()
 
-        pygame.quit()
+                # 4. Render framebuffer to the window
+                self._render_frame()
+
+                # 5. Throttle to real-time
+                elapsed = time.perf_counter() - frame_start
+                remaining = FRAME_DURATION - elapsed
+                if remaining > 0:
+                    time.sleep(remaining)
+        finally:
+            if self._wav_file:
+                self._wav_file.close()
+                print(f"Audio saved to {self._wav_path}")
+            pygame.quit()
 
     def _handle_events(self):
         """Process pygame events: window close, key press/release."""
@@ -94,6 +120,8 @@ class PygameFrontend:
                     self._running = False
                 elif event.key == pygame.K_SPACE:
                     self._fast_forward = True
+                elif event.key == pygame.K_m:
+                    self._audio_enabled = not self._audio_enabled
                 else:
                     button = KEY_MAP.get(event.key)
                     if button:
@@ -105,6 +133,29 @@ class PygameFrontend:
                     button = KEY_MAP.get(event.key)
                     if button:
                         self._gb.joypad.release(button)
+
+    def _drain_audio(self):
+        """Convert APU sample buffer to PCM for playback and/or WAV export."""
+        samples = self._gb.apu.drain_samples()
+        if not samples:
+            return
+
+        buf = array.array('h')  # signed 16-bit
+        for left, right in samples:
+            buf.append(int(max(-1.0, min(1.0, left)) * 32767))
+            buf.append(int(max(-1.0, min(1.0, right)) * 32767))
+
+        # Write to WAV file if recording
+        if self._wav_file:
+            self._wav_file.writeframes(buf.tobytes())
+
+        # Feed to mixer if available
+        if self._audio_enabled and self._audio_channel is not None:
+            sound = pygame.mixer.Sound(buffer=buf)
+            if self._audio_channel.get_busy():
+                self._audio_channel.queue(sound)
+            else:
+                self._audio_channel.play(sound)
 
     def _render_frame(self):
         """Blit the GB framebuffer onto the pygame window."""
