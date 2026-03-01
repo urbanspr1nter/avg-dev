@@ -278,6 +278,7 @@ The `Cartridge` class owns header parsing, ROM data, and checksum validation. Ba
 | 0x00 | `NoMBC` | ROM ONLY, flat access, writes ignored |
 | 0x01-0x03 | `MBC1` | 5-bit ROM bank (32 banks max), 2-bit RAM bank, banking mode |
 | 0x0F-0x13 | `MBC3` | 7-bit ROM bank (128 banks max), 4 RAM banks, optional RTC |
+| 0x19-0x1E | `MBC5` | 9-bit ROM bank (512 banks max), 4-bit RAM bank (16 max), optional rumble |
 
 Both `Cartridge.read()` and `Cartridge.write()` delegate to `self._mbc.read()` / `self._mbc.write()`. The Memory bus dispatches 0x0000-0x7FFF and 0xA000-0xBFFF to the cartridge.
 
@@ -307,16 +308,26 @@ Both `Cartridge.read()` and `Cartridge.write()` delegate to `self._mbc.read()` /
 - **RTC timekeeping:** Uses host `time.time()` rather than T-cycle counting. On latch, computes elapsed seconds since the base timestamp and decomposes into S/M/H/D.
 - **RAM enable:** Same as MBC1 (write 0x0A to 0x0000-0x1FFF).
 
+### MBC5
+
+- **ROM banking:** 9-bit bank number split across two registers. Write to 0x2000-0x2FFF sets lower 8 bits. Write to 0x3000-0x3FFF sets bit 8. Up to 512 banks (8 MB).
+- **No bank-0 quirk:** Unlike MBC1/MBC3, writing 0 selects bank 0 (valid).
+- **RAM banking:** Write 0x00-0x0F to 0x4000-0x5FFF selects one of up to 16 RAM banks (8 KB each, 128 KB max).
+- **Rumble:** On rumble variants (types 0x1C-0x1E), bit 3 of the RAM bank register controls the rumble motor. Only bits 0-2 select the RAM bank.
+- **RAM enable:** Same as MBC1/MBC3 (write 0x0A to 0x0000-0x1FFF).
+- **No RTC.** Writes to 0x6000-0x7FFF are ignored.
+
 ### Implementation files
 
 | File | Purpose |
 |------|---------|
 | `src/cartridge/gb_cartridge.py` | Cartridge class — header parsing, ROM data, delegates to MBC strategy |
-| `src/cartridge/mbc.py` | MBC strategy classes: `NoMBC`, `MBC1`, `MBC3` |
+| `src/cartridge/mbc.py` | MBC strategy classes: `NoMBC`, `MBC1`, `MBC3`, `MBC5` |
 | `src/memory/gb_memory.py` | Memory bus — dispatches 0x0000-0x7FFF and 0xA000-0xBFFF to cartridge |
 | `tests/cartridge/test_gb_cartridge.py` | Header parsing, checksum, error handling |
 | `tests/cartridge/test_mbc1.py` | MBC1 ROM/RAM banking, registers, memory integration |
 | `tests/cartridge/test_mbc3.py` | MBC3 ROM banking, RAM, RTC (latch/halt/overflow/write), memory integration (44 tests) |
+| `tests/cartridge/test_mbc5.py` | MBC5 ROM banking (9-bit, bank 0 valid), RAM (16 banks), rumble, memory integration (46 tests) |
 
 ## Frontend and Timing
 

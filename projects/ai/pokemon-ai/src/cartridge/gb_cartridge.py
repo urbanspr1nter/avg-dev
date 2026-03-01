@@ -1,6 +1,6 @@
 import os
 
-from src.cartridge.mbc import NoMBC, MBC1, MBC3
+from src.cartridge.mbc import NoMBC, MBC1, MBC3, MBC5
 
 # Cartridge types that have a battery (RAM contents persist across power cycles)
 BATTERY_TYPES = {0x03, 0x06, 0x09, 0x0F, 0x10, 0x13, 0x1B, 0x1E}
@@ -74,6 +74,10 @@ class Cartridge:
             self._mbc = MBC3(self._rom_data, num_rom_banks, self.ram_size,
                              has_rtc=has_rtc)
             self._mbc.start_rtc()
+        elif self.cartridge_type in (0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E):
+            has_rumble = self.cartridge_type in (0x1C, 0x1D, 0x1E)
+            self._mbc = MBC5(self._rom_data, num_rom_banks, self.ram_size,
+                             has_rumble=has_rumble)
         else:
             self._mbc = NoMBC(self._rom_data)
 

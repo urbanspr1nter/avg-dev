@@ -193,3 +193,56 @@ class MBC3:
         self._rtc_base_seconds = s + m * 60 + h * 3600 + days * 86400
         if not self._rtc_halted and self._rtc_base_timestamp is None:
             self._rtc_base_timestamp = time.time()
+
+
+class MBC5:
+    """MBC5 mapper. 9-bit ROM bank (up to 512 banks), 4-bit RAM bank (up to 16), optional rumble."""
+
+    def __init__(self, rom_data, num_rom_banks, ram_size, has_rumble=False):
+        self._rom_data = rom_data
+        self._num_rom_banks = num_rom_banks
+        self._ram = bytearray(ram_size) if ram_size > 0 else None
+        self._rom_bank = 1
+        self._ram_bank = 0
+        self._ram_enabled = False
+        self._has_rumble = has_rumble
+        self._rumble = False
+
+    def read(self, address):
+        if address <= 0x3FFF:
+            return self._rom_data[address]
+        if address <= 0x7FFF:
+            offset = (self._rom_bank * 0x4000) + (address - 0x4000)
+            if offset < len(self._rom_data):
+                return self._rom_data[offset]
+            return 0xFF
+        # 0xA000-0xBFFF: external RAM
+        if self._ram is not None and self._ram_enabled:
+            ram_offset = (self._ram_bank * 0x2000) + (address - 0xA000)
+            if ram_offset < len(self._ram):
+                return self._ram[ram_offset]
+        return 0xFF
+
+    def write(self, address, value):
+        value = value & 0xFF
+        if address <= 0x1FFF:
+            self._ram_enabled = (value & 0x0F) == 0x0A
+        elif address <= 0x2FFF:
+            # Lower 8 bits of ROM bank number
+            self._rom_bank = (self._rom_bank & 0x100) | value
+            self._rom_bank %= self._num_rom_banks
+        elif address <= 0x3FFF:
+            # Bit 8 (9th bit) of ROM bank number
+            self._rom_bank = ((value & 0x01) << 8) | (self._rom_bank & 0xFF)
+            self._rom_bank %= self._num_rom_banks
+        elif address <= 0x5FFF:
+            if self._has_rumble:
+                self._ram_bank = value & 0x07
+                self._rumble = bool(value & 0x08)
+            else:
+                self._ram_bank = value & 0x0F
+        elif 0xA000 <= address <= 0xBFFF:
+            if self._ram is not None and self._ram_enabled:
+                ram_offset = (self._ram_bank * 0x2000) + (address - 0xA000)
+                if ram_offset < len(self._ram):
+                    self._ram[ram_offset] = value
