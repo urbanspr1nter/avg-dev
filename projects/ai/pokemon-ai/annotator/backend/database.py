@@ -1,7 +1,9 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent.parent / "dataset.db"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+DB_PATH = PROJECT_ROOT / "dataset.db"
+DATA_DIR = PROJECT_ROOT / "data"
 
 
 def get_connection() -> sqlite3.Connection:
