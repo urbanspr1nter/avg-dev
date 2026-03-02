@@ -48,7 +48,9 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Background rendering: tile map lookup, 2bpp tile decoding, SCX/SCY scrolling, BGP palette, LCDC bit 4 addressing
   - Window rendering: overlay via WY/WX, LCDC bit 5 enable, LCDC bit 6 tile map, internal line counter
   - Sprite rendering: OAM scan (10/line limit), 8x8/8x16 modes, flips, palettes, priority, BG priority, transparency
-  - 160×144 framebuffer with `get_framebuffer()` accessor and `render_ascii()` visualization
+  - 160×144 shade framebuffer with `get_framebuffer()` accessor and `render_ascii()` visualization
+  - RGB color buffer (`get_color_buffer()`) written during rendering with SGB-style colorization
+  - `set_color_palette(bg, obj0, obj1)` configures per-layer color palettes (set automatically from ROM header)
 
 - `src/joypad/joypad.py`: Joypad (P1/JOYP register at 0xFF00)
   - 8 buttons in two groups: d-pad (right/left/up/down) and action (A/B/Select/Start)
@@ -62,8 +64,10 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - Frame sequencer (512 Hz, 8-step cycle): clocks length counters, volume envelopes, and CH1 sweep
   - Register dispatch for 0xFF10-0xFF3F with proper read masks (unused bits return 1)
   - NR52 (0xFF26) power control: on/off zeroes registers, write-protects, preserves wave RAM
-  - Stereo mixing with NR50 master volume, NR51 channel panning, high-pass filter
-  - Generates 48 kHz stereo samples into a buffer; `drain_samples()` returns pending samples
+  - Stereo mixing with NR50 master volume, NR51 channel panning, high-pass filter (charge factor 0.9963)
+  - Integer Bresenham sample counter: produces exactly 48,000 samples per second with zero drift
+  - Fast path: inlined channel ticks avoid method call overhead when no event boundary crossed
+  - Generates 48 kHz stereo samples into a buffer; `drain_samples()` returns pending `(left, right)` float tuples
   - `tick(cycles)` called by CPU run loop (same pattern as Timer/PPU)
 
 - `src/apu/pulse_channel.py`: PulseChannel (CH1 with sweep, CH2 without)
@@ -76,18 +80,25 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
 - `src/apu/noise_channel.py`: NoiseChannel (CH4)
   - 15-bit LFSR with optional 7-bit mode, divisor table, clock shift
 
+- `src/ppu/dmg_palettes.py`: GBC boot ROM color palette lookup
+  - Maps ROM header checksum (byte 0x014D) + title to game-specific color palettes
+  - 3 palettes per game: BG, OBJ0, OBJ1 (each 4 RGB colors for shades 0-3)
+  - Title-based fallback for well-known games (Pokemon Red/Blue, Tetris, Zelda, etc.)
+  - Default: grayscale for unrecognized ROMs
+
 - `src/frontend/pygame_frontend.py`: Pygame GUI frontend
   - `PygameFrontend` class — thin rendering layer over the GameBoy core
   - Frame-based timing: runs 70,224 T-cycles per frame (~16.74ms), sleeps for remainder to hit ~59.7 fps
-  - Renders PPU framebuffer (shade values 0-3) using classic DMG green palette
-  - Audio output: drains APU sample buffer each frame, converts to 16-bit PCM, plays via pygame.mixer
+  - Renders PPU RGB color buffer directly via `ppu.get_color_buffer()` — no palette conversion in frontend
+  - Audio streaming: accumulates APU samples into a buffer, feeds larger chunks (~43ms) to pygame.mixer to prevent crackling
   - Keyboard input mapped to joypad: WASD (d-pad), J/K (B/A), Enter (Start), Delete (Select)
   - Fast-forward: hold Space for 3x speed (runs 3 emulation frames per rendered frame)
   - Mute toggle: M key enables/disables audio output
+  - Screenshots: F12 saves JPG at scaled resolution to `screenshots/` directory next to ROM
   - Save states: CTRL+1-9 saves to slot, 1-9 loads from slot (files: `{rom}.state{N}`, pickle format)
   - WAV recording: `--wav FILE` flag records audio to 48kHz 16-bit stereo WAV file
   - GameBoy core has no knowledge of the frontend — frontend depends on core, not vice versa
-  - Designed for modularity: future HTML5/REST frontend uses the same `gb.run()` / `gb.get_framebuffer()` / `gb.joypad.press()` interface
+  - Designed for modularity: future HTML5/REST frontend uses the same `gb.run()` / `gb.ppu.get_color_buffer()` / `gb.joypad.press()` interface
 
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
@@ -132,8 +143,8 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - `test_ppu.py`: Register defaults/read/write, STAT mask, LY read-only, mode timing, V-Blank interrupt, LCD disabled, CPU integration, BG rendering, tile decoding, scrolling, tile addressing, window rendering, sprite rendering, STAT interrupts, OAM DMA, VRAM/OAM access restrictions, ASCII output
 - `tests/joypad/`: Joypad tests (34 tests)
   - `test_joypad.py`: Register read/write, select-line multiplexing, all 8 buttons, press/release, interrupt firing, memory integration, GameBoy integration
-- `tests/frontend/`: Frontend tests (19 tests)
-  - `test_pygame_frontend.py`: DMG palette, key mapping, timing constants, frame cycle advancement, event handling (press/release/escape/quit), post-boot state
+- `tests/frontend/`: Frontend tests (20 tests)
+  - `test_pygame_frontend.py`: Color palette lookup, key mapping, timing constants, frame cycle advancement, event handling (press/release/escape/quit), post-boot state
 
 ## Critical Implementation Notes
 
@@ -281,7 +292,7 @@ To make the work more digestible and manageable, we follow this approach:
 ## Commands to Run Tests
 
 ```bash
-# All tests (990 tests)
+# All tests (991 tests)
 python -m unittest discover tests/ -v
 
 # CPU tests only (388 tests)
@@ -435,7 +446,7 @@ The unprefixed RLCA/RRCA/RLA/RRA (0x07/0x0F/0x17/0x1F) only operate on A and **a
 
 ## Current Test Status
 
-990 tests passing as of March 1, 2026.
+991 tests passing as of March 1, 2026.
 
 ### Blargg Test ROM Validation
 
@@ -454,9 +465,9 @@ Tetris title screen renders correctly via ASCII framebuffer:
 
 Interactive pygame frontend:
 - Run with: `python run_pygame.py rom/Tetris.gb` (optionally `--scale 4`)
-- Renders at ~59.7 fps with classic DMG green palette
+- Renders at ~62 fps (1.04x realtime) with SGB colorization
 - WASD for d-pad, J/K for B/A, Enter for Start, Delete for Select, Escape to quit
-- Hold Space for 3x fast-forward
+- Hold Space for 3x fast-forward, F12 for screenshot, M to toggle mute
 
 ### Real Game Validation: Pokemon Red
 
@@ -659,3 +670,39 @@ The Game Boy interrupt system is being implemented in multiple phases:
 - Implemented in `gb_memory.py` `get_value()`/`set_value()` — only affects CPU-initiated access
 - PPU internal rendering reads from `self._memory.memory[]` (raw array), unaffected by restrictions
 - 10 new tests (VRAM read/write per mode, OAM read/write per mode, no-PPU fallback)
+
+### ✅ Phase 9: SGB Colorization (COMPLETED)
+- PPU outputs RGB directly into `_color_buffer` (bytearray) during scanline rendering
+- `set_color_palette(bg, obj0, obj1)` configures per-layer color palettes
+- `get_color_buffer()` returns 160×144×3 bytearray ready for `pygame.image.frombuffer()`
+- `GameBoy.load_cartridge()` auto-detects palette from ROM header checksum + title
+- Palette lookup in `src/ppu/dmg_palettes.py`: GBC boot ROM checksum table + title-based fallback
+- Pokemon Red: red BG/OBJ0, green OBJ1; default: grayscale for unknown ROMs
+- Frontend simplified: no per-pixel palette conversion loop (single `frombuffer()` call)
+
+## Performance Optimization
+
+See `PERFORMANCE.md` for the full report with before/after code snippets.
+
+**Result:** ~15 fps → ~62 fps (1.04x realtime) on M3 Max running Pokemon Red.
+
+Key optimizations (chronological):
+1. **Framebuffer rendering** — `set_at()` per pixel → `frombuffer()` from pre-allocated bytearray
+2. **APU batch ticking** — per-cycle loop → event boundary batching (76% APU reduction)
+3. **PPU batch ticking** — per-dot loop → fast path skips ~95% of calls (54% PPU reduction)
+4. **Timer batch ticking** — per-cycle falling edge → O(1) integer arithmetic (83% Timer reduction)
+5. **Opcode pre-indexing** — string formatting + dict lookup → flat 256-element list
+6. **CPU run loop rewrite** — cached locals, combined dispatch table, bound tick methods
+7. **Memory bus optimization** — inlined ROM reads, bytearray backing store (74% get_value reduction)
+8. **Flag access** — if/elif chain → dict lookup
+9. **APU channel tick inlining** — eliminated 1.3M method calls/30 frames in fast path
+10. **APU mixer optimization** — unrolled panning, inlined high-pass filter
+
+## Audio Quality
+
+Fixes applied to eliminate crackling and sample drift:
+1. **Interrupt service tick bug** — CPU run loop skipped APU/PPU/Timer ticks during interrupt servicing; fixed by adding tick calls before `continue`
+2. **Integer Bresenham sample counter** — replaced float counter to eliminate cumulative drift (47,989 → 48,000 samples/sec exact)
+3. **HPF charge factor** — corrected from 0.996 to 0.9963 (proper derivation: `0.999958^(4194304/48000)`)
+4. **Audio streaming buffer** — accumulates samples across frames and feeds larger chunks (~43ms) to mixer, eliminating crackling from per-frame Sound allocation and chunk boundary gaps
+5. **Buffer overflow cap** — 100ms max to prevent latency buildup during fast-forward
