@@ -217,6 +217,9 @@ __marimo__/
 
 .venv
 
+# Node.js
+node_modules/
+
 # ROM files (copyrighted, do not commit)
 rom/
 *.gb
