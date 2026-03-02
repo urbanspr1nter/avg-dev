@@ -10,12 +10,12 @@ import pygame
 GB_WIDTH = 160
 GB_HEIGHT = 144
 
-# Classic DMG green palette: shade value (0-3) → RGB tuple
+# Grayscale palette: shade value (0-3) → RGB tuple
 DMG_PALETTE = (
-    (155, 188, 15),   # 0: lightest
-    (139, 172, 15),   # 1: light
-    (48, 98, 48),     # 2: dark
-    (15, 56, 15),     # 3: darkest
+    (255, 255, 255),  # 0: white
+    (170, 170, 170),  # 1: light gray
+    (85, 85, 85),     # 2: dark gray
+    (0, 0, 0),        # 3: black
 )
 
 # Game Boy timing
@@ -131,6 +131,8 @@ class PygameFrontend:
                     self._fast_forward = True
                 elif event.key == pygame.K_m:
                     self._audio_enabled = not self._audio_enabled
+                elif event.key == pygame.K_F12:
+                    self._take_screenshot()
                 elif (event.mod & pygame.KMOD_CTRL) and pygame.K_1 <= event.key <= pygame.K_9:
                     self._save_state(event.key - pygame.K_1 + 1)
                 elif not (event.mod & (pygame.KMOD_CTRL | pygame.KMOD_ALT | pygame.KMOD_SHIFT)) \
@@ -147,6 +149,17 @@ class PygameFrontend:
                     button = KEY_MAP.get(event.key)
                     if button:
                         self._gb.joypad.release(button)
+
+    def _take_screenshot(self):
+        """Save the current screen to a screenshots directory next to the ROM."""
+        if self._rom_path is None:
+            return
+        screenshots_dir = os.path.join(os.path.dirname(self._rom_path), 'screenshots')
+        os.makedirs(screenshots_dir, exist_ok=True)
+        timestamp = time.strftime('%Y%m%d_%H%M%S')
+        path = os.path.join(screenshots_dir, f'screenshot_{timestamp}.jpg')
+        pygame.image.save(self._screen, path)
+        print(f"Screenshot saved to {path}")
 
     def _save_state(self, slot):
         """Save emulator state to the given slot."""
