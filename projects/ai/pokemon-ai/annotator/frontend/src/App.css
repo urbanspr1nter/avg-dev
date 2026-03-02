@@ -41,6 +41,27 @@
   margin-bottom: 1.25rem;
 }
 
+.gallery-filters {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.gallery-filters select {
+  padding: 6px 10px;
+  font-size: 0.95rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #f5f5f5;
+  color: #000;
+  cursor: pointer;
+}
+
+.gallery-filters select:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
 .gallery-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

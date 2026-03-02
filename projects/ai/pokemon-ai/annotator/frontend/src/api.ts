@@ -22,8 +22,16 @@ export interface AnnotationPage {
   page_size: number;
 }
 
-export async function fetchAnnotations(page: number, pageSize = 20): Promise<AnnotationPage> {
-  const res = await fetch(`${API_BASE}/annotations?page=${page}&page_size=${pageSize}`);
+export interface Filters {
+  task_type?: string;
+  reviewed?: string;
+}
+
+export async function fetchAnnotations(page: number, pageSize = 20, filters: Filters = {}): Promise<AnnotationPage> {
+  const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (filters.task_type) params.set("task_type", filters.task_type);
+  if (filters.reviewed) params.set("reviewed", filters.reviewed);
+  const res = await fetch(`${API_BASE}/annotations?${params}`);
   if (!res.ok) throw new Error("Failed to fetch annotations");
   return res.json();
 }

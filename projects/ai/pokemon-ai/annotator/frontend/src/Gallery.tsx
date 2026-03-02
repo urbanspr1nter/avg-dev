@@ -1,22 +1,32 @@
 import { useState, useEffect, useCallback, type DragEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { fetchAnnotations, uploadImage, imageUrl, type Annotation } from "./api";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { fetchAnnotations, uploadImage, imageUrl, type Annotation, type Filters } from "./api";
 
 const PAGE_SIZE = 20;
 
+const TASK_TYPES = ["bbox", "navigation"];
+
 export default function Gallery() {
-  const [page, setPage] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [total, setTotal] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
+  const page = Number(searchParams.get("page") || "0");
+  const filterTaskType = searchParams.get("task_type") || "";
+  const filterReviewed = searchParams.get("reviewed") || "";
+
+  const filters: Filters = {};
+  if (filterTaskType) filters.task_type = filterTaskType;
+  if (filterReviewed) filters.reviewed = filterReviewed;
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const loadPage = useCallback(async (p: number) => {
+  const loadPage = useCallback(async (p: number, f: Filters) => {
     try {
-      const data = await fetchAnnotations(p, PAGE_SIZE);
+      const data = await fetchAnnotations(p, PAGE_SIZE, f);
       setAnnotations(data.items ?? []);
       setTotal(data.total ?? 0);
     } catch {
@@ -26,8 +36,21 @@ export default function Gallery() {
   }, []);
 
   useEffect(() => {
-    loadPage(page);
-  }, [page, loadPage]);
+    loadPage(page, filters);
+  }, [page, filterTaskType, filterReviewed, loadPage]);
+
+  const updateParams = (updates: Record<string, string>) => {
+    const next = new URLSearchParams(searchParams);
+    for (const [k, v] of Object.entries(updates)) {
+      if (v) next.set(k, v);
+      else next.delete(k);
+    }
+    // Reset to page 0 when filters change
+    if ("task_type" in updates || "reviewed" in updates) {
+      next.set("page", "0");
+    }
+    setSearchParams(next);
+  };
 
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -58,11 +81,17 @@ export default function Gallery() {
         }
       }
       setUploading(false);
-      setPage(0);
-      loadPage(0);
+      updateParams({ page: "0" });
+      loadPage(0, filters);
     },
-    [loadPage]
+    [loadPage, filters, searchParams]
   );
+
+  // Build query string for Detail links to preserve filters
+  const filterQuery = new URLSearchParams();
+  if (filterTaskType) filterQuery.set("task_type", filterTaskType);
+  if (filterReviewed) filterQuery.set("reviewed", filterReviewed);
+  const filterSuffix = filterQuery.toString() ? `?${filterQuery}` : "";
 
   return (
     <div
@@ -72,6 +101,26 @@ export default function Gallery() {
       onDrop={handleDrop}
     >
       <h1>Annotations ({total})</h1>
+
+      <div className="gallery-filters">
+        <select
+          value={filterTaskType}
+          onChange={(e) => updateParams({ task_type: e.target.value })}
+        >
+          <option value="">All Task Types</option>
+          {TASK_TYPES.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+        <select
+          value={filterReviewed}
+          onChange={(e) => updateParams({ reviewed: e.target.value })}
+        >
+          <option value="">All</option>
+          <option value="true">Reviewed</option>
+          <option value="false">Unreviewed</option>
+        </select>
+      </div>
 
       {dragging && (
         <div className="drop-overlay">
@@ -90,7 +139,7 @@ export default function Gallery() {
           <div
             key={ann.id}
             className={`thumbnail ${ann.reviewed ? "thumbnail-reviewed" : ""}`}
-            onClick={() => navigate(`/annotation/${ann.id}`)}
+            onClick={() => navigate(`/annotation/${ann.id}${filterSuffix}`)}
           >
             <img
               className="thumbnail-img"
@@ -107,13 +156,13 @@ export default function Gallery() {
 
       {total > PAGE_SIZE && (
         <div className="pagination">
-          <button disabled={page === 0} onClick={() => setPage(page - 1)}>
+          <button disabled={page === 0} onClick={() => updateParams({ page: String(page - 1) })}>
             Prev
           </button>
           <span>
             Page {page + 1} of {totalPages}
           </span>
-          <button disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+          <button disabled={page >= totalPages - 1} onClick={() => updateParams({ page: String(page + 1) })}>
             Next
           </button>
         </div>

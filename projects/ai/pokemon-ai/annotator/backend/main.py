@@ -53,13 +53,32 @@ def health():
 
 
 @app.get("/annotations")
-def list_annotations(page: int = Query(0, ge=0), page_size: int = Query(20, ge=1, le=100)):
+def list_annotations(
+    page: int = Query(0, ge=0),
+    page_size: int = Query(20, ge=1, le=100),
+    task_type: str | None = Query(None),
+    reviewed: str | None = Query(None),
+):
     conn = get_connection()
     try:
-        total = conn.execute("SELECT COUNT(*) FROM annotations").fetchone()[0]
+        where_clauses = []
+        params: list = []
+
+        if task_type:
+            where_clauses.append("task_type = ?")
+            params.append(task_type)
+
+        if reviewed == "true":
+            where_clauses.append("reviewed = 1")
+        elif reviewed == "false":
+            where_clauses.append("reviewed = 0")
+
+        where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        total = conn.execute(f"SELECT COUNT(*) FROM annotations{where_sql}", params).fetchone()[0]
         rows = conn.execute(
-            "SELECT * FROM annotations ORDER BY id DESC LIMIT ? OFFSET ?",
-            (page_size, page * page_size),
+            f"SELECT * FROM annotations{where_sql} ORDER BY id DESC LIMIT ? OFFSET ?",
+            params + [page_size, page * page_size],
         ).fetchall()
     finally:
         conn.close()

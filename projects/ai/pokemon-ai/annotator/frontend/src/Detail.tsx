@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   fetchAnnotations,
   fetchAnnotation,
@@ -7,6 +7,7 @@ import {
   deleteAnnotation,
   imageUrl,
   type Annotation,
+  type Filters,
 } from "./api";
 import BoundingBoxModal from "./BoundingBoxModal";
 import type { BoundingBox } from "./types";
@@ -31,6 +32,18 @@ const ACTIONS = [
 export default function Detail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const filterTaskType = searchParams.get("task_type") || "";
+  const filterReviewed = searchParams.get("reviewed") || "";
+  const filters: Filters = {};
+  if (filterTaskType) filters.task_type = filterTaskType;
+  if (filterReviewed) filters.reviewed = filterReviewed;
+
+  const filterQuery = new URLSearchParams();
+  if (filterTaskType) filterQuery.set("task_type", filterTaskType);
+  if (filterReviewed) filterQuery.set("reviewed", filterReviewed);
+  const filterSuffix = filterQuery.toString() ? `?${filterQuery}` : "";
 
   const [annotation, setAnnotation] = useState<Annotation | null>(null);
   const [form, setForm] = useState<Annotation | null>(null);
@@ -39,10 +52,10 @@ export default function Detail() {
   const [showBoxModal, setShowBoxModal] = useState(false);
 
   useEffect(() => {
-    fetchAnnotations(0, 10000).then((data) =>
+    fetchAnnotations(0, 10000, filters).then((data) =>
       setAllIds(data.items.map((a) => a.id))
     );
-  }, []);
+  }, [filterTaskType, filterReviewed]);
 
   useEffect(() => {
     const annId = Number(id);
@@ -61,7 +74,7 @@ export default function Detail() {
   const hasNext = index < allIds.length - 1;
 
   const goTo = (newIndex: number) => {
-    navigate(`/annotation/${allIds[newIndex]}`, { replace: true });
+    navigate(`/annotation/${allIds[newIndex]}${filterSuffix}`, { replace: true });
   };
 
   const updateField = (field: keyof Annotation, value: string | boolean) => {
@@ -114,11 +127,11 @@ export default function Detail() {
       setAllIds(newIds);
 
       if (newIds.length === 0) {
-        navigate("/");
+        navigate(`/${filterSuffix}`);
       } else if (index < newIds.length) {
-        navigate(`/annotation/${newIds[index]}`, { replace: true });
+        navigate(`/annotation/${newIds[index]}${filterSuffix}`, { replace: true });
       } else {
-        navigate(`/annotation/${newIds[newIds.length - 1]}`, { replace: true });
+        navigate(`/annotation/${newIds[newIds.length - 1]}${filterSuffix}`, { replace: true });
       }
     } catch {
       // failed
@@ -128,7 +141,7 @@ export default function Detail() {
   return (
     <div className="detail">
       <div className="detail-nav">
-        <button onClick={() => navigate("/")}>Back to Gallery</button>
+        <button onClick={() => navigate(`/${filterSuffix}`)}>Back to Gallery</button>
         <span className="detail-nav-counter">
           {index >= 0 ? index + 1 : "?"} / {allIds.length}
         </span>
@@ -274,7 +287,7 @@ export default function Detail() {
             <button className="delete-btn" onClick={handleDelete}>
               Delete
             </button>
-            <button className="discard-btn" onClick={() => navigate("/")}>
+            <button className="discard-btn" onClick={() => navigate(`/${filterSuffix}`)}>
               Discard
             </button>
             <button className="save-btn" onClick={handleSave} disabled={saving}>
