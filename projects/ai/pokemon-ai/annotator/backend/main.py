@@ -37,3 +37,27 @@ async def upload_image(file: UploadFile):
         conn.close()
 
     return {"id": annotation_id, "image_filename": filename}
+
+
+@app.delete("/annotations/{annotation_id}")
+def delete_annotation(annotation_id: int):
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT image_filename FROM annotations WHERE id = ?",
+            (annotation_id,),
+        ).fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Annotation not found")
+
+        filepath = DATA_DIR / row["image_filename"]
+        if filepath.exists():
+            filepath.unlink()
+
+        conn.execute("DELETE FROM annotations WHERE id = ?", (annotation_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"ok": True}

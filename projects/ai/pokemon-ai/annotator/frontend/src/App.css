@@ -1,42 +1,243 @@
-#root {
-  max-width: 1280px;
+/* Gallery */
+.gallery {
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  padding: 1.5rem;
+  position: relative;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.gallery-dragover {
+  outline: 2px dashed #646cff;
+  outline-offset: -4px;
+  border-radius: 8px;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(100, 108, 255, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.drop-overlay span {
+  font-size: 1.25rem;
+  color: #646cff;
+  font-weight: 500;
 }
 
-.card {
-  padding: 2em;
+.upload-status {
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  color: #aaa;
 }
 
-.read-the-docs {
+.gallery h1 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.thumbnail {
+  cursor: pointer;
+  border: 1px solid #444;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.thumbnail:hover {
+  border-color: #888;
+}
+
+.thumbnail-img {
+  aspect-ratio: 10 / 9;
+  background: #3a3a3a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
   color: #888;
+}
+
+.thumbnail-label {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.pagination span {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+/* Detail */
+.detail {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.detail-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.detail-nav-counter {
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.detail-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+.detail-image-placeholder {
+  aspect-ratio: 10 / 9;
+  background: #3a3a3a;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: #666;
+}
+
+.detail-filename {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #888;
+  word-break: break-all;
+}
+
+.detail-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group label {
+  font-size: 0.8rem;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.form-group input[type="text"]:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #646cff;
+}
+
+.form-checkboxes {
+  display: flex;
+  gap: 1.5rem;
+  padding: 0.25rem 0;
+}
+
+.form-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.delete-btn {
+  padding: 0.5em 1.5em;
+  background: transparent;
+  color: #e55;
+  border: 1px solid #e55;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.delete-btn:hover {
+  background: #e55;
+  color: white;
+}
+
+.discard-btn {
+  padding: 0.5em 1.5em;
+  background: transparent;
+  color: #aaa;
+  border: 1px solid #555;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.discard-btn:hover {
+  border-color: #888;
+  color: #ddd;
+}
+
+.save-btn {
+  padding: 0.5em 1.5em;
+  background: #646cff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.save-btn:hover {
+  background: #535bf2;
+}
+
+.form-nav-arrows {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
 }
