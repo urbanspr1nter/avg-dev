@@ -89,7 +89,7 @@ export default function Gallery() {
         {annotations.map((ann) => (
           <div
             key={ann.id}
-            className="thumbnail"
+            className={`thumbnail ${ann.reviewed ? "thumbnail-reviewed" : ""}`}
             onClick={() => navigate(`/annotation/${ann.id}`)}
           >
             <img

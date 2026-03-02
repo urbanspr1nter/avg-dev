@@ -55,6 +55,11 @@
   transition: border-color 0.15s;
 }
 
+.thumbnail-reviewed {
+  border-color: #ffcc00;
+  border-width: 3px;
+}
+
 .thumbnail:hover {
   border-color: #646cff;
 }
