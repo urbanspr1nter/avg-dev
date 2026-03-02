@@ -48,6 +48,14 @@ class PPU:
         # --- Framebuffer ---
         self._framebuffer = [[0] * 160 for _ in range(144)]
         self._window_line = 0   # Internal window line counter
+        # --- Color output ---
+        # RGB color buffer written during scanline rendering.
+        # Frontend can read this directly with pygame.image.frombuffer().
+        self._color_buffer = bytearray(160 * 144 * 3)
+        # Color palettes: shade 0-3 → (R, G, B) for each layer
+        self._bg_colors = ((255, 255, 255), (170, 170, 170), (85, 85, 85), (0, 0, 0))
+        self._obj0_colors = ((255, 255, 255), (170, 170, 170), (85, 85, 85), (0, 0, 0))
+        self._obj1_colors = ((255, 255, 255), (170, 170, 170), (85, 85, 85), (0, 0, 0))
 
     def save_state(self):
         return {
@@ -339,6 +347,9 @@ class PPU:
         row_offset = row_in_tile * 2
 
         row = self._framebuffer[ly]
+        cbuf = self._color_buffer
+        bg_colors = self._bg_colors
+        cbuf_row_offset = ly * 160 * 3
         prev_tile_col = -1
         low_byte = 0
         high_byte = 0
@@ -356,7 +367,13 @@ class PPU:
             bit_pos = 7 - (scroll_x & 0x07)
             color_index = (((high_byte >> bit_pos) & 1) << 1) | ((low_byte >> bit_pos) & 1)
             bg_indices[px] = color_index
-            row[px] = (bgp >> (color_index * 2)) & 0x03
+            shade = (bgp >> (color_index * 2)) & 0x03
+            row[px] = shade
+            r, g, b = bg_colors[shade]
+            off = cbuf_row_offset + px * 3
+            cbuf[off] = r
+            cbuf[off + 1] = g
+            cbuf[off + 2] = b
 
         # --- Window ---
         if (lcdc & 0x20) and ly >= self._wy:
@@ -385,7 +402,13 @@ class PPU:
                 bit_pos = 7 - (win_px & 0x07)
                 color_index = (((high_byte >> bit_pos) & 1) << 1) | ((low_byte >> bit_pos) & 1)
                 bg_indices[px] = color_index
-                row[px] = (bgp >> (color_index * 2)) & 0x03
+                shade = (bgp >> (color_index * 2)) & 0x03
+                row[px] = shade
+                r, g, b = bg_colors[shade]
+                off = cbuf_row_offset + px * 3
+                cbuf[off] = r
+                cbuf[off + 1] = g
+                cbuf[off + 2] = b
                 window_rendered = True
 
             if window_rendered:
@@ -403,6 +426,10 @@ class PPU:
         """Render sprites for the current scanline."""
         lcdc = self._lcdc
         sprite_height = 16 if (lcdc & 0x04) else 8
+        cbuf = self._color_buffer
+        obj0_colors = self._obj0_colors
+        obj1_colors = self._obj1_colors
+        cbuf_row_offset = ly * 160 * 3
 
         # OAM scan: collect up to 10 sprites overlapping this scanline
         sprites = []
@@ -431,6 +458,7 @@ class PPU:
             y_flip = bool(attrs & 0x40)
             x_flip = bool(attrs & 0x20)
             palette = self._obp1 if (attrs & 0x10) else self._obp0
+            colors = obj1_colors if (attrs & 0x10) else obj0_colors
             bg_priority = bool(attrs & 0x80)
 
             # Row within sprite
@@ -464,14 +492,36 @@ class PPU:
 
                 shade = (palette >> (color_index * 2)) & 0x03
                 row[px] = shade
+                r, g, b = colors[shade]
+                off = cbuf_row_offset + px * 3
+                cbuf[off] = r
+                cbuf[off + 1] = g
+                cbuf[off + 2] = b
 
     # ------------------------------------------------------------------ #
     #  Public accessors
     # ------------------------------------------------------------------ #
 
+    def set_color_palette(self, bg, obj0, obj1):
+        """Set the color palettes for SGB-style colorization.
+
+        Each palette is a tuple of 4 (R, G, B) tuples mapping shade 0-3 to RGB.
+        """
+        self._bg_colors = bg
+        self._obj0_colors = obj0
+        self._obj1_colors = obj1
+
     def get_framebuffer(self):
         """Return the 160x144 framebuffer (list of lists, shade values 0-3)."""
         return self._framebuffer
+
+    def get_color_buffer(self):
+        """Return the RGB color buffer as a flat bytearray (160*144*3 bytes).
+
+        Written during scanline rendering. Can be passed directly to
+        pygame.image.frombuffer(buf, (160, 144), 'RGB').
+        """
+        return self._color_buffer
 
     _ASCII_SHADES = [" ", "░", "▒", "█"]
 

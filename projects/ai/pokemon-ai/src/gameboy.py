@@ -6,6 +6,7 @@ from src.ppu.ppu import PPU
 from src.joypad.joypad import Joypad
 from src.apu.apu import APU
 from src.cartridge.gb_cartridge import Cartridge
+from src.ppu.dmg_palettes import get_palette
 
 
 class GameBoy:
@@ -85,6 +86,9 @@ class GameBoy:
         """
         self.cartridge = Cartridge(rom_path)
         self.memory.load_cartridge(self.cartridge)
+        # Apply GBC boot ROM color palette based on ROM header
+        bg, obj0, obj1 = get_palette(self.cartridge.header_checksum, self.cartridge.title)
+        self.ppu.set_color_palette(bg, obj0, obj1)
         return self.cartridge
 
     def run(self, max_cycles=-1):

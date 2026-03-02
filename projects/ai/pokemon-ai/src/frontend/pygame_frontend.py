@@ -10,14 +10,6 @@ import pygame
 GB_WIDTH = 160
 GB_HEIGHT = 144
 
-# Grayscale palette: shade value (0-3) → RGB tuple
-DMG_PALETTE = (
-    (255, 255, 255),  # 0: white
-    (170, 170, 170),  # 1: light gray
-    (85, 85, 85),     # 2: dark gray
-    (0, 0, 0),        # 3: black
-)
-
 # Game Boy timing
 CYCLES_PER_FRAME = 70_224          # 154 scanlines × 456 T-cycles
 FRAME_DURATION = 70_224 / 4_194_304  # ~16.74ms → ~59.7 fps
@@ -74,8 +66,6 @@ class PygameFrontend:
         )
         pygame.display.set_caption("Game Boy")
 
-        # Pre-allocated RGB buffer for fast framebuffer → Surface conversion
-        self._pixel_buffer = bytearray(GB_WIDTH * GB_HEIGHT * 3)
 
     def run(self):
         """Main emulation loop: run one frame, render, handle input, repeat."""
@@ -225,19 +215,7 @@ class PygameFrontend:
 
     def _render_frame(self):
         """Blit the GB framebuffer onto the pygame window."""
-        framebuffer = self._gb.get_framebuffer()
-        buf = self._pixel_buffer
-
-        offset = 0
-        for y in range(GB_HEIGHT):
-            row = framebuffer[y]
-            for x in range(GB_WIDTH):
-                r, g, b = DMG_PALETTE[row[x]]
-                buf[offset] = r
-                buf[offset + 1] = g
-                buf[offset + 2] = b
-                offset += 3
-
+        buf = self._gb.ppu.get_color_buffer()
         image = pygame.image.frombuffer(buf, (GB_WIDTH, GB_HEIGHT), 'RGB')
         scaled = pygame.transform.scale(
             image,

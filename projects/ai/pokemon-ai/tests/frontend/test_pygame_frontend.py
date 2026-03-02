@@ -3,34 +3,45 @@ from unittest.mock import MagicMock, patch
 
 from src.frontend.pygame_frontend import (
     CYCLES_PER_FRAME,
-    DMG_PALETTE,
     FRAME_DURATION,
     GB_HEIGHT,
     GB_WIDTH,
     KEY_MAP,
 )
+from src.ppu.dmg_palettes import get_palette
 
 
-class TestDMGPalette(unittest.TestCase):
-    """Test the classic DMG green palette constants."""
+class TestColorPalettes(unittest.TestCase):
+    """Test the SGB/GBC boot ROM color palette system."""
 
-    def test_has_four_entries(self):
-        self.assertEqual(len(DMG_PALETTE), 4)
+    def test_default_palette_is_grayscale(self):
+        bg, obj0, obj1 = get_palette(0x00)  # Unknown checksum
+        self.assertEqual(len(bg), 4)
+        self.assertEqual(bg[0], (255, 255, 255))
+        self.assertEqual(bg[3], (0, 0, 0))
 
-    def test_entries_are_rgb_tuples(self):
-        for i, color in enumerate(DMG_PALETTE):
-            self.assertEqual(len(color), 3, f"Shade {i} is not an RGB triple")
-            for ch in color:
-                self.assertGreaterEqual(ch, 0)
-                self.assertLessEqual(ch, 255)
+    def test_palette_entries_are_rgb_tuples(self):
+        bg, obj0, obj1 = get_palette(0x00)
+        for palette in (bg, obj0, obj1):
+            self.assertEqual(len(palette), 4)
+            for color in palette:
+                self.assertEqual(len(color), 3)
+                for ch in color:
+                    self.assertGreaterEqual(ch, 0)
+                    self.assertLessEqual(ch, 255)
 
     def test_shades_darken_monotonically(self):
-        """Each shade should be darker (lower sum of RGB) than the previous."""
+        bg, _, _ = get_palette(0x00)
         for i in range(1, 4):
-            brighter = sum(DMG_PALETTE[i - 1])
-            darker = sum(DMG_PALETTE[i])
+            brighter = sum(bg[i - 1])
+            darker = sum(bg[i])
             self.assertGreater(brighter, darker,
                                f"Shade {i} is not darker than shade {i - 1}")
+
+    def test_pokemon_red_gets_red_palette(self):
+        bg, obj0, obj1 = get_palette(0x59, 'POKEMON RED')
+        # BG should be red-themed (R > G and R > B for middle shades)
+        self.assertGreater(bg[1][0], bg[1][1])  # R > G for shade 1
 
 
 class TestKeyMap(unittest.TestCase):

@@ -46,7 +46,7 @@ Here are the technical specifications of the Gameboy hardware.
 |Resolution|160 px x 144 px|
 |OBJ Sprites|8x8 or 8x16, max: 40 per screen, 10 per line|
 |Color Palettes|BG: 1x4, OBJ: 2x3|
-|Colors|4 shades of green|
+|Colors|4 shades (SGB colorization via GBC boot ROM palettes)|
 |Horizontal Sync|9.198 KHz|
 |Vertical Sync|59.73 Hz|
 |Sound|4 channels with stereo output|
@@ -362,16 +362,23 @@ If the emulation is too slow to complete a frame within 16.74ms (Python runs the
 
 ### Rendering
 
-The PPU produces a 160×144 framebuffer of shade values (0-3). The frontend maps these to the classic DMG green palette:
+The PPU produces a 160×144 RGB color buffer (`bytearray` of 69,120 bytes) during scanline rendering. The frontend reads this directly — no palette conversion needed.
 
-| Shade | RGB | Appearance |
-|-------|-----|------------|
-| 0 | (155, 188, 15) | Lightest (off/white) |
-| 1 | (139, 172, 15) | Light |
-| 2 | (48, 98, 48) | Dark |
-| 3 | (15, 56, 15) | Darkest (on/black) |
+Colors are determined by the **SGB/GBC boot ROM colorization** system: when a cartridge is loaded, the `GameBoy` class looks up the ROM header checksum (byte 0x014D) in a palette table (`src/ppu/dmg_palettes.py`) and configures the PPU with game-specific color palettes. Each palette set has 3 palettes of 4 RGB colors:
 
-The framebuffer is drawn pixel-by-pixel onto a native 160×144 pygame surface, then scaled up to the window size (default 3x = 480×432).
+- **BG palette** — background and window pixels
+- **OBJ0 palette** — sprites using OBP0
+- **OBJ1 palette** — sprites using OBP1
+
+The shade value (0-3) from the DMG palette registers (BGP/OBP0/OBP1) indexes into these color palettes to produce the final RGB output. For example, Pokemon Red gets a red-themed BG/OBJ0 palette and a green OBJ1 palette — matching the original Game Boy Color experience.
+
+ROMs without a known palette default to grayscale (white → light gray → dark gray → black).
+
+The color buffer is passed directly to `pygame.image.frombuffer()` — a single C-level call that builds the surface from raw bytes, scaled to the window size (default 3x = 480×432).
+
+### Screenshots
+
+Press **F12** to save a JPG screenshot at the scaled display resolution to a `screenshots/` directory alongside the ROM file. Screenshots capture the exact rendered output including SGB colorization.
 
 ### Keyboard mapping
 
@@ -383,16 +390,23 @@ The framebuffer is drawn pixel-by-pixel onto a native 160×144 pygame surface, t
 | Enter | Start |
 | Delete | Select |
 | Escape | Quit |
+| F12 | Screenshot |
+| Space (hold) | Fast-forward (3x) |
+| M | Toggle audio mute |
+| Ctrl+1-9 | Save state to slot |
+| 1-9 | Load state from slot |
 
 ### Modularity for future frontends
 
-The frontend interacts with the GameBoy core through three existing interfaces:
+The frontend interacts with the GameBoy core through these interfaces:
 
 1. **`gb.run(max_cycles=target)`** — advance emulation by one frame
-2. **`gb.get_framebuffer()`** — read the PPU's 160×144 shade array
-3. **`gb.joypad.press(button)` / `gb.joypad.release(button)`** — inject input
+2. **`gb.ppu.get_color_buffer()`** — read the PPU's 160×144 RGB buffer (bytearray, ready for blitting)
+3. **`gb.get_framebuffer()`** — read the PPU's 160×144 shade array (for tests/analysis)
+4. **`gb.joypad.press(button)` / `gb.joypad.release(button)`** — inject input
+5. **`gb.apu.drain_samples()`** — get pending audio samples as `(left, right)` float tuples
 
-A future HTML5 frontend would POST button presses to a REST API that calls the same `press()`/`release()` methods, and serve the framebuffer as image data. No abstract base class is needed — the GameBoy class itself is the stable interface.
+A future HTML5 frontend would POST button presses to a REST API that calls the same `press()`/`release()` methods, and serve the color buffer as image data. No abstract base class is needed — the GameBoy class itself is the stable interface.
 
 ### Post-boot state
 
@@ -402,7 +416,8 @@ The `GameBoy.init_post_boot_state()` method sets all CPU registers and memory to
 
 | File | Purpose |
 |------|---------|
-| `src/frontend/pygame_frontend.py` | PygameFrontend class — rendering, input, timing loop |
+| `src/frontend/pygame_frontend.py` | PygameFrontend class — rendering, input, audio streaming, timing loop |
+| `src/ppu/dmg_palettes.py` | GBC boot ROM palette table — checksum-based lookup for SGB colorization |
 | `run_pygame.py` | Runner script for interactive play (`python run_pygame.py rom/Tetris.gb`) |
 | `tests/frontend/test_pygame_frontend.py` | Palette, key mapping, timing constants, event handling, post-boot state tests |
 
