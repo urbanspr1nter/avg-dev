@@ -46,19 +46,20 @@ class APU:
         self._fs_counter = 0
         self._fs_step = 0
 
-        # Sample generation
-        self._sample_counter = 0.0
+        # Sample generation — integer Bresenham counter prevents float drift.
+        # Counter increments by SAMPLE_RATE * cycles each tick.
+        # A sample is generated when counter >= CPU_CLOCK, then counter -= CPU_CLOCK.
+        # This produces exactly SAMPLE_RATE samples per CPU_CLOCK cycles with zero drift.
+        self._sample_counter = 0
         self._sample_buffer = []
-        # Cache class constants as instance attrs for faster access
-        self._sample_period = self.SAMPLE_PERIOD
 
         # High-pass filter state (removes DC offset)
         self._hpf_capacitor_left = 0.0
         self._hpf_capacitor_right = 0.0
         # Charge factor adjusted for 48 kHz sample rate
         # DMG factor at native rate: 0.999958
-        # Adjusted: 0.999958 ^ (4194304 / 48000) ≈ 0.996
-        self._hpf_charge_factor = 0.996
+        # Adjusted: 0.999958 ^ (4194304 / 48000) ≈ 0.9963
+        self._hpf_charge_factor = 0.9963
 
     def tick(self, cycles):
         """Advance the APU by the given number of T-cycles."""
@@ -66,10 +67,10 @@ class APU:
             return
 
         fs_counter = self._fs_counter + cycles
-        sample_counter = self._sample_counter + cycles
+        sample_counter = self._sample_counter + cycles * 48000
 
         # Fast path: no event boundary within this batch
-        if fs_counter < 8192 and sample_counter < self._sample_period:
+        if fs_counter < 8192 and sample_counter < 4194304:
             self._fs_counter = fs_counter
             self._sample_counter = sample_counter
             # Inline channel ticks to avoid 4 method calls
@@ -114,15 +115,17 @@ class APU:
             return
 
         # Slow path: event boundary crossed
-        sample_period = self._sample_period
         remaining = cycles
         while remaining > 0:
             cycles_to_fs = 8192 - self._fs_counter
-            cycles_to_sample = int(sample_period - self._sample_counter) + 1
+            # Ceiling division: how many cycles until next sample
+            cycles_to_sample = (4194304 - self._sample_counter + 47999) // 48000
+            if cycles_to_sample < 1:
+                cycles_to_sample = 1
             step = min(remaining, cycles_to_fs, cycles_to_sample)
 
             self._fs_counter += step
-            self._sample_counter += step
+            self._sample_counter += step * 48000
             remaining -= step
 
             self._ch1.tick(step)
@@ -134,8 +137,8 @@ class APU:
                 self._fs_counter = 0
                 self._clock_frame_sequencer()
 
-            if self._sample_counter >= sample_period:
-                self._sample_counter -= sample_period
+            if self._sample_counter >= 4194304:
+                self._sample_counter -= 4194304
                 self._sample_buffer.append(self._mix_channels())
 
     def _clock_frame_sequencer(self):

@@ -63,6 +63,12 @@ class PygameFrontend:
             self._audio_enabled = False
             self._audio_channel = None
 
+        # Audio streaming buffer: accumulate samples across frames and feed
+        # larger chunks to the mixer to avoid gaps between tiny per-frame chunks.
+        # Target ~4 frames worth (~3200 stereo samples) per chunk.
+        self._audio_buffer = array.array('h')
+        self._audio_chunk_size = 4096  # stereo samples (2048 frames × 2 channels)
+
         self._screen = pygame.display.set_mode(
             (GB_WIDTH * scale, GB_HEIGHT * scale)
         )
@@ -177,22 +183,32 @@ class PygameFrontend:
         if not samples:
             return
 
-        buf = array.array('h')  # signed 16-bit
+        audio_buf = self._audio_buffer
         for left, right in samples:
-            buf.append(int(max(-1.0, min(1.0, left)) * 32767))
-            buf.append(int(max(-1.0, min(1.0, right)) * 32767))
+            audio_buf.append(int(max(-1.0, min(1.0, left)) * 32767))
+            audio_buf.append(int(max(-1.0, min(1.0, right)) * 32767))
 
         # Write to WAV file if recording
         if self._wav_file:
-            self._wav_file.writeframes(buf.tobytes())
+            self._wav_file.writeframes(audio_buf[-len(samples) * 2:].tobytes())
 
-        # Feed to mixer if available
+        # Feed to mixer when we have enough samples for a chunk
         if self._audio_enabled and self._audio_channel is not None:
-            sound = pygame.mixer.Sound(buffer=buf)
-            if self._audio_channel.get_busy():
-                self._audio_channel.queue(sound)
-            else:
-                self._audio_channel.play(sound)
+            # Cap buffer to ~100ms to prevent latency buildup during fast-forward
+            max_buf = 48000 * 2 // 10  # 100ms of stereo samples
+            if len(audio_buf) > max_buf:
+                del audio_buf[:len(audio_buf) - max_buf]
+
+            chunk_size = self._audio_chunk_size
+            while len(audio_buf) >= chunk_size:
+                chunk = array.array('h', audio_buf[:chunk_size])
+                del audio_buf[:chunk_size]
+                sound = pygame.mixer.Sound(buffer=chunk)
+                if not self._audio_channel.get_busy():
+                    self._audio_channel.play(sound)
+                else:
+                    self._audio_channel.queue(sound)
+                    break  # Only 1 queued sound allowed; wait for next drain
 
     def _render_frame(self):
         """Blit the GB framebuffer onto the pygame window."""

@@ -1063,6 +1063,12 @@ class CPU:
                 if interrupt_cycles > 0:
                     current_cycles += interrupt_cycles
                     cycles_consumed += interrupt_cycles
+                    if timer_tick:
+                        timer_tick(interrupt_cycles)
+                    if ppu_tick:
+                        ppu_tick(interrupt_cycles)
+                    if apu_tick:
+                        apu_tick(interrupt_cycles)
                     continue
 
             # Inline fetch: read opcode from memory[PC], advance PC
