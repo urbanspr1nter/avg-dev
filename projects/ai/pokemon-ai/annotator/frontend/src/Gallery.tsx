@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, type DragEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchAnnotations, uploadImage, imageUrl, type Annotation, type Filters } from "./api";
+import type { BoundingBox } from "./types";
 
 const PAGE_SIZE = 20;
 
@@ -141,11 +142,31 @@ export default function Gallery() {
             className={`thumbnail ${ann.reviewed ? "thumbnail-reviewed" : ""}`}
             onClick={() => navigate(`/annotation/${ann.id}${filterSuffix}`)}
           >
-            <img
-              className="thumbnail-img"
-              src={imageUrl(ann.image_filename)}
-              alt={ann.image_filename}
-            />
+            <div className="thumbnail-img-container">
+              <img
+                className="thumbnail-img"
+                src={imageUrl(ann.image_filename)}
+                alt={ann.image_filename}
+              />
+              {(() => {
+                const boxes: BoundingBox[] = JSON.parse(ann.bounding_boxes || "[]");
+                if (boxes.length === 0) return null;
+                return (
+                  <svg className="thumbnail-img-overlay" viewBox="0 0 480 432">
+                    {boxes.map((box) => (
+                      <rect
+                        key={box.id}
+                        x={box.x} y={box.y}
+                        width={box.width} height={box.height}
+                        fill="rgba(34, 204, 68, 0.15)"
+                        stroke="#22cc44"
+                        strokeWidth={6}
+                      />
+                    ))}
+                  </svg>
+                );
+              })()}
+            </div>
             <div className="thumbnail-label">
               <span className="thumbnail-id">#{ann.id}</span>
               {ann.image_filename.slice(0, 8)}...

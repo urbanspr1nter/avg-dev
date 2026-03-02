@@ -69,9 +69,9 @@
 }
 
 .bbox-rect.selected {
-  stroke: #e55;
+  stroke: #22cc44;
   stroke-width: 2.5;
-  fill: rgba(229, 85, 85, 0.15);
+  fill: rgba(34, 204, 68, 0.15);
 }
 
 .bbox-rect.drawing {
@@ -98,7 +98,7 @@
 /* Resize handles */
 .bbox-handle {
   fill: white;
-  stroke: #e55;
+  stroke: #22cc44;
   stroke-width: 1.5;
 }
 

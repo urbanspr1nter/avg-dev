@@ -85,12 +85,24 @@
   border-color: #646cff;
 }
 
+.thumbnail-img-container {
+  position: relative;
+}
+
 img.thumbnail-img {
   width: 100%;
   aspect-ratio: 10 / 9;
   object-fit: cover;
   background: #3a3a3a;
   display: block;
+}
+
+.thumbnail-img-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
 .thumbnail-label {

@@ -55,7 +55,7 @@ def health():
 @app.get("/annotations")
 def list_annotations(
     page: int = Query(0, ge=0),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=10000),
     task_type: str | None = Query(None),
     reviewed: str | None = Query(None),
 ):

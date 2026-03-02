@@ -164,8 +164,8 @@ export default function Detail() {
                       <rect
                         x={box.x} y={box.y}
                         width={box.width} height={box.height}
-                        fill="rgba(100, 108, 255, 0.15)"
-                        stroke="#646cff"
+                        fill="rgba(34, 204, 68, 0.15)"
+                        stroke="#22cc44"
                         strokeWidth={2}
                       />
                       <rect

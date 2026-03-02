@@ -1,6 +1,6 @@
-import array
 import os
 import pickle
+import struct
 import time
 import wave
 
@@ -46,7 +46,7 @@ class PygameFrontend:
         self._wav_file = None
         self._rom_path = rom_path
 
-        pygame.mixer.pre_init(frequency=48000, size=-16, channels=2, buffer=1024)
+        pygame.mixer.pre_init(frequency=48000, size=-16, channels=2, buffer=2048)
         pygame.init()
         try:
             pygame.mixer.init()
@@ -55,16 +55,19 @@ class PygameFrontend:
             self._audio_enabled = False
             self._audio_channel = None
 
-        # Audio streaming buffer: accumulate samples across frames and feed
-        # larger chunks to the mixer to avoid gaps between tiny per-frame chunks.
-        # Target ~4 frames worth (~3200 stereo samples) per chunk.
-        self._audio_buffer = array.array('h')
-        self._audio_chunk_size = 4096  # stereo samples (2048 frames × 2 channels)
+        # Audio streaming: accumulate PCM bytes and feed chunks to the mixer.
+        # ~42ms chunks (2048 stereo frames) balance latency vs gap risk.
+        self._audio_buffer = bytearray()
+        self._audio_chunk_bytes = 2048 * 4  # 2048 frames × 2 channels × 2 bytes
 
         self._screen = pygame.display.set_mode(
             (GB_WIDTH * scale, GB_HEIGHT * scale)
         )
         pygame.display.set_caption("Game Boy")
+
+        # Pre-allocate a native-res surface matching the screen's pixel format
+        # so we can scale directly into the screen each frame (no allocation).
+        self._native_surface = pygame.Surface((GB_WIDTH, GB_HEIGHT)).convert()
 
 
     def run(self):
@@ -190,40 +193,46 @@ class PygameFrontend:
         if not samples:
             return
 
-        audio_buf = self._audio_buffer
+        # Batch-convert float pairs to interleaved int16 PCM bytes.
+        # clamp to [-1, 1] then scale to int16 range.
+        clamp = max
+        pcm_values = []
         for left, right in samples:
-            audio_buf.append(int(max(-1.0, min(1.0, left)) * 32767))
-            audio_buf.append(int(max(-1.0, min(1.0, right)) * 32767))
+            pcm_values.append(int(clamp(-1.0, min(1.0, left)) * 32767))
+            pcm_values.append(int(clamp(-1.0, min(1.0, right)) * 32767))
+        pcm_bytes = struct.pack(f'<{len(pcm_values)}h', *pcm_values)
 
-        # Write to WAV file if recording
         if self._wav_file:
-            self._wav_file.writeframes(audio_buf[-len(samples) * 2:].tobytes())
+            self._wav_file.writeframes(pcm_bytes)
 
-        # Feed to mixer when we have enough samples for a chunk
+        audio_buf = self._audio_buffer
+        audio_buf.extend(pcm_bytes)
+
         if self._audio_enabled and self._audio_channel is not None:
             # Cap buffer to ~100ms to prevent latency buildup during fast-forward
-            max_buf = 48000 * 2 // 10  # 100ms of stereo samples
-            if len(audio_buf) > max_buf:
-                del audio_buf[:len(audio_buf) - max_buf]
+            max_bytes = 48000 * 4 // 10  # 100ms of stereo int16
+            if len(audio_buf) > max_bytes:
+                del audio_buf[:len(audio_buf) - max_bytes]
 
-            chunk_size = self._audio_chunk_size
-            while len(audio_buf) >= chunk_size:
-                chunk = array.array('h', audio_buf[:chunk_size])
-                del audio_buf[:chunk_size]
+            chunk_bytes = self._audio_chunk_bytes
+            while len(audio_buf) >= chunk_bytes:
+                chunk = bytes(audio_buf[:chunk_bytes])
+                del audio_buf[:chunk_bytes]
                 sound = pygame.mixer.Sound(buffer=chunk)
                 if not self._audio_channel.get_busy():
                     self._audio_channel.play(sound)
                 else:
                     self._audio_channel.queue(sound)
-                    break  # Only 1 queued sound allowed; wait for next drain
+                    break
 
     def _render_frame(self):
         """Blit the GB framebuffer onto the pygame window."""
         buf = self._gb.ppu.get_color_buffer()
         image = pygame.image.frombuffer(buf, (GB_WIDTH, GB_HEIGHT), 'RGB')
-        scaled = pygame.transform.scale(
-            image,
-            (GB_WIDTH * self._scale, GB_HEIGHT * self._scale),
-        )
-        self._screen.blit(scaled, (0, 0))
+        # Blit native-res image into the pre-allocated surface (matching the
+        # screen's pixel format) so we can scale directly into the screen.
+        self._native_surface.blit(image, (0, 0))
+        pygame.transform.scale(self._native_surface,
+                               (GB_WIDTH * self._scale, GB_HEIGHT * self._scale),
+                               self._screen)
         pygame.display.flip()
