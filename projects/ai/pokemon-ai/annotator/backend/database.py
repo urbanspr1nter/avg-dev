@@ -23,6 +23,7 @@ def init_db():
             system_prompt TEXT NOT NULL DEFAULT '',
             instruction TEXT NOT NULL DEFAULT '',
             label TEXT NOT NULL DEFAULT '',
+            action TEXT NOT NULL DEFAULT '',
             task_type TEXT NOT NULL DEFAULT '',
             bounding_boxes TEXT NOT NULL DEFAULT '[]',
             reviewed INTEGER NOT NULL DEFAULT 0,

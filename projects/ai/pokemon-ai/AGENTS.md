@@ -100,6 +100,46 @@ The pokemon-ai project is a Gameboy emulator with a REST API interface, designed
   - GameBoy core has no knowledge of the frontend — frontend depends on core, not vice versa
   - Designed for modularity: future HTML5/REST frontend uses the same `gb.run()` / `gb.ppu.get_color_buffer()` / `gb.joypad.press()` interface
 
+### Annotator (Web Tool for SFT Data Curation)
+
+- `dataset.db`: SQLite database at project root storing annotation data
+- `data/`: Directory for curated JPEG screenshots (git-lfs tracked)
+- `.gitattributes`: Git LFS tracking for `data/*.jpg`
+
+- `annotator/backend/main.py`: FastAPI REST API
+  - `GET /health` — health check
+  - `POST /annotations/upload` — accepts JPEG upload, saves as `{uuid}.jpg` in `data/`, inserts row with default empty fields
+  - Runs with: `cd annotator/backend && .venv/bin/uvicorn main:app`
+
+- `annotator/backend/database.py`: SQLite connection and schema management
+  - `get_connection()` — returns connection with WAL mode, row factory, foreign keys
+  - `init_db()` — creates `annotations` table and `updated_at` trigger (called on app startup)
+  - `PROJECT_ROOT`, `DB_PATH`, `DATA_DIR` path constants
+
+- `annotator/backend/.venv/`: Python virtual environment (FastAPI, uvicorn, python-multipart)
+- `annotator/backend/requirements.txt`: Pinned Python dependencies
+
+- `annotator/frontend/`: React + TypeScript Vite app
+  - Scaffolded with `create-vite` react-ts template
+  - Runs with: `cd annotator/frontend && npm run dev`
+
+#### Annotations Table Schema (`dataset.db`)
+| Column | Type | Default | Notes |
+|--------|------|---------|-------|
+| id | INTEGER | auto-increment | Primary key |
+| image_filename | TEXT | — | UUID-based `.jpg` filename (no path) |
+| system_prompt | TEXT | `''` | System prompt for the VLM |
+| instruction | TEXT | `''` | User instruction |
+| label | TEXT | `''` | Expected answer/output |
+| action | TEXT | `''` | Action string |
+| task_type | TEXT | `''` | Task category string |
+| bounding_boxes | TEXT | `'[]'` | Serialized JSON array of bounding box objects |
+| reviewed | INTEGER | `0` | Boolean: manually reviewed |
+| validation_set | INTEGER | `0` | Boolean: belongs to validation set |
+| created_at | TEXT | ISO 8601 | Auto-set on insert |
+| updated_at | TEXT | ISO 8601 | Auto-updated via trigger |
+
+### Tests
 - `tests/cpu/`: Unit tests for CPU functionality (388 tests)
   - `test_fetch_with_operands.py`: Tests for opcodes with operands
   - `test_fetch_opcodes_only.py`: Tests for opcodes without operands
