@@ -8,6 +8,25 @@ import {
   imageUrl,
   type Annotation,
 } from "./api";
+import BoundingBoxModal from "./BoundingBoxModal";
+import type { BoundingBox } from "./types";
+
+const TASK_TYPES = [
+  "bbox",
+  "navigation",
+];
+
+const ACTIONS = [
+  "left",
+  "right",
+  "up",
+  "down",
+  "a",
+  "b",
+  "start",
+  "select",
+  "completed",
+];
 
 export default function Detail() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +36,7 @@ export default function Detail() {
   const [form, setForm] = useState<Annotation | null>(null);
   const [allIds, setAllIds] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showBoxModal, setShowBoxModal] = useState(false);
 
   useEffect(() => {
     fetchAnnotations(0, 10000).then((data) =>
@@ -51,10 +71,18 @@ export default function Detail() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Minify label JSON before saving
+      let labelToSave = form.label;
+      try {
+        labelToSave = JSON.stringify(JSON.parse(form.label));
+      } catch {
+        // not valid JSON, save as-is
+      }
+
       const updated = await updateAnnotation(annotation.id, {
         system_prompt: form.system_prompt,
         instruction: form.instruction,
-        label: form.label,
+        label: labelToSave,
         action: form.action,
         task_type: form.task_type,
         bounding_boxes: form.bounding_boxes,
@@ -62,7 +90,14 @@ export default function Detail() {
         validation_set: form.validation_set,
       });
       setAnnotation(updated);
-      setForm(updated);
+      // Re-prettify label for display
+      let displayLabel = updated.label;
+      try {
+        displayLabel = JSON.stringify(JSON.parse(updated.label), null, 2);
+      } catch {
+        // not JSON, keep as-is
+      }
+      setForm({ ...updated, label: displayLabel });
     } catch {
       // failed
     }
@@ -100,11 +135,44 @@ export default function Detail() {
       </div>
       <div className="detail-content">
         <div className="detail-image">
-          <img
-            className="detail-image-full"
-            src={imageUrl(annotation.image_filename)}
-            alt={annotation.image_filename}
-          />
+          <div className="detail-image-container">
+            <img
+              className="detail-image-full"
+              src={imageUrl(annotation.image_filename)}
+              alt={annotation.image_filename}
+            />
+            {(() => {
+              const boxes: BoundingBox[] = JSON.parse(form.bounding_boxes || "[]");
+              if (boxes.length === 0) return null;
+              return (
+                <svg className="detail-image-overlay" viewBox="0 0 480 432">
+                  {boxes.map((box) => (
+                    <g key={box.id}>
+                      <rect
+                        x={box.x} y={box.y}
+                        width={box.width} height={box.height}
+                        fill="rgba(100, 108, 255, 0.15)"
+                        stroke="#646cff"
+                        strokeWidth={2}
+                      />
+                      <rect
+                        x={box.x} y={box.y - 16}
+                        width={24} height={14} rx={2}
+                        fill="#646cff"
+                      />
+                      <text
+                        x={box.x + 3} y={box.y - 5}
+                        fill="#fff" fontSize={11} fontWeight={700}
+                        fontFamily="'SF Mono', 'Menlo', monospace"
+                      >
+                        {box.id}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+              );
+            })()}
+          </div>
           <div className="detail-filename">
             <span className="detail-id">#{annotation.id}</span>
             {annotation.image_filename}
@@ -128,38 +196,59 @@ export default function Detail() {
             />
           </div>
           <div className="form-group">
-            <label>Label</label>
+            <div className="form-group-header">
+              <label>Label</label>
+              <button
+                className="format-json-btn"
+                onClick={() => {
+                  try {
+                    const parsed = JSON.parse(form.label);
+                    updateField("label", JSON.stringify(parsed, null, 2));
+                  } catch {
+                    alert("Invalid JSON");
+                  }
+                }}
+              >
+                Format JSON
+              </button>
+            </div>
             <textarea
               className="mono"
-              rows={3}
+              rows={6}
               value={form.label}
               onChange={(e) => updateField("label", e.target.value)}
             />
           </div>
           <div className="form-group">
             <label>Action</label>
-            <input
-              type="text"
+            <select
               value={form.action}
               onChange={(e) => updateField("action", e.target.value)}
-            />
+            >
+              <option value="">-- Select --</option>
+              {ACTIONS.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
           </div>
           <div className="form-group">
             <label>Task Type</label>
-            <input
-              type="text"
+            <select
               value={form.task_type}
               onChange={(e) => updateField("task_type", e.target.value)}
-            />
+            >
+              <option value="">-- Select --</option>
+              {TASK_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
           <div className="form-group">
             <label>Bounding Boxes (JSON)</label>
-            <textarea
-              className="mono"
-              rows={3}
-              value={form.bounding_boxes}
-              onChange={(e) => updateField("bounding_boxes", e.target.value)}
-            />
+            <pre className="mono bbox-display">{form.bounding_boxes || "[]"}</pre>
+            <button className="edit-boxes-btn" onClick={() => setShowBoxModal(true)}>
+              Edit Boxes
+            </button>
           </div>
           <div className="form-checkboxes">
             <label>
@@ -202,6 +291,18 @@ export default function Detail() {
           </div>
         </div>
       </div>
+
+      {showBoxModal && (
+        <BoundingBoxModal
+          imageUrl={imageUrl(annotation.image_filename)}
+          initialBoxes={JSON.parse(form.bounding_boxes || "[]") as BoundingBox[]}
+          onSave={(boxes) => {
+            updateField("bounding_boxes", JSON.stringify(boxes));
+            setShowBoxModal(false);
+          }}
+          onCancel={() => setShowBoxModal(false)}
+        />
+      )}
     </div>
   );
 }

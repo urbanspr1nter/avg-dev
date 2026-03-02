@@ -1,0 +1,134 @@
+.bbox-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.bbox-modal {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.bbox-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.bbox-modal-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #111;
+}
+
+.bbox-modal-header span {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.bbox-canvas-container {
+  position: relative;
+  margin: 1rem auto;
+  user-select: none;
+}
+
+.bbox-canvas-container img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+.bbox-canvas-container svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+/* Box rectangles */
+.bbox-rect {
+  fill: rgba(100, 108, 255, 0.15);
+  stroke: #646cff;
+  stroke-width: 2;
+  cursor: move;
+}
+
+.bbox-rect.selected {
+  stroke: #e55;
+  stroke-width: 2.5;
+  fill: rgba(229, 85, 85, 0.15);
+}
+
+.bbox-rect.drawing {
+  fill: rgba(100, 108, 255, 0.1);
+  stroke: #646cff;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 2;
+  pointer-events: none;
+}
+
+/* ID labels */
+.bbox-label {
+  fill: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'SF Mono', 'Menlo', 'Monaco', 'Consolas', monospace;
+  pointer-events: none;
+}
+
+.bbox-label-bg {
+  fill: #646cff;
+}
+
+/* Resize handles */
+.bbox-handle {
+  fill: white;
+  stroke: #e55;
+  stroke-width: 1.5;
+}
+
+.bbox-handle-nw, .bbox-handle-se { cursor: nwse-resize; }
+.bbox-handle-ne, .bbox-handle-sw { cursor: nesw-resize; }
+.bbox-handle-n, .bbox-handle-s   { cursor: ns-resize; }
+.bbox-handle-e, .bbox-handle-w   { cursor: ew-resize; }
+
+/* Delete button on box */
+.bbox-delete-circle {
+  fill: #e55;
+  cursor: pointer;
+}
+
+.bbox-delete-circle:hover {
+  fill: #c33;
+}
+
+.bbox-delete-text {
+  fill: white;
+  font-size: 12px;
+  font-weight: bold;
+  pointer-events: none;
+}
+
+/* Modal footer */
+.bbox-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #ddd;
+}
