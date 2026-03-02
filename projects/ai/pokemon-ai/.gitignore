@@ -217,6 +217,10 @@ __marimo__/
 
 .venv
 
+# SQLite WAL files
+*.db-shm
+*.db-wal
+
 # Node.js
 node_modules/
 
