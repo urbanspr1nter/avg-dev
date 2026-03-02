@@ -1,20 +1,33 @@
-import { useState, useCallback, type DragEvent } from "react";
+import { useState, useEffect, useCallback, type DragEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { mockAnnotations, type Annotation } from "./mockData";
+import { fetchAnnotations, uploadImage, imageUrl, type Annotation } from "./api";
 
 const PAGE_SIZE = 20;
-const API_BASE = "http://localhost:8000";
 
 export default function Gallery() {
   const [page, setPage] = useState(0);
-  const [annotations, setAnnotations] = useState<Annotation[]>(mockAnnotations);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [total, setTotal] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
-  const totalPages = Math.ceil(annotations.length / PAGE_SIZE);
-  const start = page * PAGE_SIZE;
-  const items = annotations.slice(start, start + PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const loadPage = useCallback(async (p: number) => {
+    try {
+      const data = await fetchAnnotations(p, PAGE_SIZE);
+      setAnnotations(data.items ?? []);
+      setTotal(data.total ?? 0);
+    } catch {
+      setAnnotations([]);
+      setTotal(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPage(page);
+  }, [page, loadPage]);
 
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -34,52 +47,21 @@ export default function Gallery() {
       const files = Array.from(e.dataTransfer.files).filter((f) =>
         f.type.startsWith("image/jpeg")
       );
-
       if (files.length === 0) return;
 
       setUploading(true);
-
-      const uploaded: Annotation[] = [];
       for (const file of files) {
-        const formData = new FormData();
-        formData.append("file", file);
-
         try {
-          const res = await fetch(`${API_BASE}/annotations/upload`, {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!res.ok) continue;
-
-          const data = await res.json();
-          uploaded.push({
-            id: data.id,
-            image_filename: data.image_filename,
-            system_prompt: "",
-            instruction: "",
-            label: "",
-            action: "",
-            task_type: "",
-            bounding_boxes: "[]",
-            reviewed: false,
-            validation_set: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
+          await uploadImage(file);
         } catch {
-          // skip failed uploads
+          // skip failed
         }
       }
-
-      if (uploaded.length > 0) {
-        setAnnotations((prev) => [...uploaded, ...prev]);
-        setPage(0);
-      }
-
       setUploading(false);
+      setPage(0);
+      loadPage(0);
     },
-    []
+    [loadPage]
   );
 
   return (
@@ -89,7 +71,7 @@ export default function Gallery() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <h1>Annotations</h1>
+      <h1>Annotations ({total})</h1>
 
       {dragging && (
         <div className="drop-overlay">
@@ -99,31 +81,43 @@ export default function Gallery() {
 
       {uploading && <div className="upload-status">Uploading...</div>}
 
+      {annotations.length === 0 && !uploading && (
+        <div className="gallery-empty">No annotations yet. Drag and drop JPEG images to get started.</div>
+      )}
+
       <div className="gallery-grid">
-        {items.map((ann) => (
+        {annotations.map((ann) => (
           <div
             key={ann.id}
             className="thumbnail"
             onClick={() => navigate(`/annotation/${ann.id}`)}
           >
-            <div className="thumbnail-img">
-              <span>{ann.id}</span>
+            <img
+              className="thumbnail-img"
+              src={imageUrl(ann.image_filename)}
+              alt={ann.image_filename}
+            />
+            <div className="thumbnail-label">
+              <span className="thumbnail-id">#{ann.id}</span>
+              {ann.image_filename.slice(0, 8)}...
             </div>
-            <div className="thumbnail-label">{ann.image_filename.slice(0, 8)}...</div>
           </div>
         ))}
       </div>
-      <div className="pagination">
-        <button disabled={page === 0} onClick={() => setPage(page - 1)}>
-          Prev
-        </button>
-        <span>
-          Page {page + 1} of {totalPages}
-        </span>
-        <button disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
-          Next
-        </button>
-      </div>
+
+      {total > PAGE_SIZE && (
+        <div className="pagination">
+          <button disabled={page === 0} onClick={() => setPage(page - 1)}>
+            Prev
+          </button>
+          <span>
+            Page {page + 1} of {totalPages}
+          </span>
+          <button disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -148,7 +148,11 @@ class PygameFrontend:
         os.makedirs(screenshots_dir, exist_ok=True)
         timestamp = time.strftime('%Y%m%d_%H%M%S')
         path = os.path.join(screenshots_dir, f'screenshot_{timestamp}.jpg')
-        pygame.image.save(self._screen, path)
+        from PIL import Image
+        raw = pygame.image.tobytes(self._screen, 'RGB')
+        size = self._screen.get_size()
+        img = Image.frombytes('RGB', size, raw)
+        img.save(path, 'JPEG', quality=95)
         print(f"Screenshot saved to {path}")
 
     def _save_state(self, slot):

@@ -1,58 +1,89 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { mockAnnotations, type Annotation } from "./mockData";
-
-const API_BASE = "http://localhost:8000";
+import {
+  fetchAnnotations,
+  fetchAnnotation,
+  updateAnnotation,
+  deleteAnnotation,
+  imageUrl,
+  type Annotation,
+} from "./api";
 
 export default function Detail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const index = mockAnnotations.findIndex((a) => a.id === Number(id));
-  const annotation = mockAnnotations[index];
+  const [annotation, setAnnotation] = useState<Annotation | null>(null);
+  const [form, setForm] = useState<Annotation | null>(null);
+  const [allIds, setAllIds] = useState<number[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState<Annotation>(
-    annotation ?? mockAnnotations[0]
-  );
+  useEffect(() => {
+    fetchAnnotations(0, 10000).then((data) =>
+      setAllIds(data.items.map((a) => a.id))
+    );
+  }, []);
 
-  if (!annotation) {
-    return <div className="detail">Annotation not found.</div>;
+  useEffect(() => {
+    const annId = Number(id);
+    fetchAnnotation(annId).then((data) => {
+      setAnnotation(data);
+      setForm(data);
+    });
+  }, [id]);
+
+  if (!form || !annotation) {
+    return <div className="detail">Loading...</div>;
   }
 
+  const index = allIds.indexOf(annotation.id);
   const hasPrev = index > 0;
-  const hasNext = index < mockAnnotations.length - 1;
+  const hasNext = index < allIds.length - 1;
 
   const goTo = (newIndex: number) => {
-    const next = mockAnnotations[newIndex];
-    setForm(next);
-    navigate(`/annotation/${next.id}`, { replace: true });
+    navigate(`/annotation/${allIds[newIndex]}`, { replace: true });
   };
 
   const updateField = (field: keyof Annotation, value: string | boolean) => {
     setForm({ ...form, [field]: value });
   };
 
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await updateAnnotation(annotation.id, {
+        system_prompt: form.system_prompt,
+        instruction: form.instruction,
+        label: form.label,
+        action: form.action,
+        task_type: form.task_type,
+        bounding_boxes: form.bounding_boxes,
+        reviewed: form.reviewed,
+        validation_set: form.validation_set,
+      });
+      setAnnotation(updated);
+      setForm(updated);
+    } catch {
+      // failed
+    }
+    setSaving(false);
+  };
+
   const handleDelete = async () => {
     if (!confirm("Delete this annotation and its image?")) return;
 
     try {
-      const res = await fetch(`${API_BASE}/annotations/${annotation.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) return;
+      await deleteAnnotation(annotation.id);
 
-      mockAnnotations.splice(index, 1);
+      const newIds = allIds.filter((i) => i !== annotation.id);
+      setAllIds(newIds);
 
-      if (mockAnnotations.length === 0) {
+      if (newIds.length === 0) {
         navigate("/");
-      } else if (index < mockAnnotations.length) {
-        const next = mockAnnotations[index];
-        setForm(next);
-        navigate(`/annotation/${next.id}`, { replace: true });
+      } else if (index < newIds.length) {
+        navigate(`/annotation/${newIds[index]}`, { replace: true });
       } else {
-        const prev = mockAnnotations[index - 1];
-        setForm(prev);
-        navigate(`/annotation/${prev.id}`, { replace: true });
+        navigate(`/annotation/${newIds[newIds.length - 1]}`, { replace: true });
       }
     } catch {
       // failed
@@ -64,15 +95,20 @@ export default function Detail() {
       <div className="detail-nav">
         <button onClick={() => navigate("/")}>Back to Gallery</button>
         <span className="detail-nav-counter">
-          {index + 1} / {mockAnnotations.length}
+          {index >= 0 ? index + 1 : "?"} / {allIds.length}
         </span>
       </div>
       <div className="detail-content">
         <div className="detail-image">
-          <div className="detail-image-placeholder">
-            <span>{form.id}</span>
+          <img
+            className="detail-image-full"
+            src={imageUrl(annotation.image_filename)}
+            alt={annotation.image_filename}
+          />
+          <div className="detail-filename">
+            <span className="detail-id">#{annotation.id}</span>
+            {annotation.image_filename}
           </div>
-          <div className="detail-filename">{form.image_filename}</div>
         </div>
         <div className="detail-form">
           <div className="form-group">
@@ -94,6 +130,7 @@ export default function Detail() {
           <div className="form-group">
             <label>Label</label>
             <textarea
+              className="mono"
               rows={3}
               value={form.label}
               onChange={(e) => updateField("label", e.target.value)}
@@ -118,6 +155,7 @@ export default function Detail() {
           <div className="form-group">
             <label>Bounding Boxes (JSON)</label>
             <textarea
+              className="mono"
               rows={3}
               value={form.bounding_boxes}
               onChange={(e) => updateField("bounding_boxes", e.target.value)}
@@ -150,7 +188,9 @@ export default function Detail() {
             <button className="discard-btn" onClick={() => navigate("/")}>
               Discard
             </button>
-            <button className="save-btn">Save</button>
+            <button className="save-btn" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </button>
             <div className="form-nav-arrows">
               <button disabled={!hasPrev} onClick={() => goTo(index - 1)}>
                 Prev
