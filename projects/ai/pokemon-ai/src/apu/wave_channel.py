@@ -37,17 +37,16 @@ class WaveChannel:
         """Advance the frequency timer by the given number of T-cycles."""
         if not self._enabled:
             return
-        for _ in range(cycles):
-            self._freq_timer -= 1
-            if self._freq_timer <= 0:
-                self._freq_timer = (2048 - self._period) * 2
-                self._wave_pos = (self._wave_pos + 1) & 31
-                # Read sample from wave RAM
-                byte_idx = self._wave_pos >> 1
-                if self._wave_pos & 1:
-                    self._sample_buffer = self._wave_ram[byte_idx] & 0x0F
-                else:
-                    self._sample_buffer = (self._wave_ram[byte_idx] >> 4) & 0x0F
+        self._freq_timer -= cycles
+        while self._freq_timer <= 0:
+            self._freq_timer += (2048 - self._period) * 2
+            self._wave_pos = (self._wave_pos + 1) & 31
+            # Read sample from wave RAM
+            byte_idx = self._wave_pos >> 1
+            if self._wave_pos & 1:
+                self._sample_buffer = self._wave_ram[byte_idx] & 0x0F
+            else:
+                self._sample_buffer = (self._wave_ram[byte_idx] >> 4) & 0x0F
 
     def clock_length(self):
         """Clock the length counter (called at 256 Hz by frame sequencer)."""

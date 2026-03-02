@@ -166,39 +166,76 @@ class PPU:
         """Advance the PPU by the given number of T-cycles.
 
         Called by the CPU run loop after each instruction (and during HALT
-        idle).  Each T-cycle advances the dot counter and triggers mode
-        transitions at the correct thresholds.
+        idle).  Batches dots between event boundaries (80, 252, 456) to
+        avoid per-cycle Python iteration.
         """
         if not (self._lcdc & 0x80):
-            # LCD disabled — PPU does not advance
             return
 
-        for _ in range(cycles):
-            self._dot += 1
+        dot = self._dot
+        ly = self._ly
 
-            if self._ly < self.VISIBLE_SCANLINES:
-                # Visible scanline: cycle through modes 2 → 3 → 0
-                if self._dot == self.OAM_SCAN_DOTS:
+        # Fast path: compute next event boundary and check if we stay within it
+        if ly < 144:
+            if dot < 80:
+                next_event = 80
+            elif dot < 252:
+                next_event = 252
+            else:
+                next_event = 456
+        else:
+            next_event = 456
+
+        gap = next_event - dot
+        if cycles < gap:
+            # Common case: no event boundary crossed
+            self._dot = dot + cycles
+            return
+
+        # Slow path: event boundary crossed (rare per-instruction)
+        remaining = cycles
+        while remaining > 0:
+            dot = self._dot
+            if ly < 144:
+                if dot < 80:
+                    next_event = 80
+                elif dot < 252:
+                    next_event = 252
+                else:
+                    next_event = 456
+            else:
+                next_event = 456
+
+            step = next_event - dot
+            if step > remaining:
+                step = remaining
+            self._dot = dot + step
+            remaining -= step
+
+            # Process events at thresholds
+            if ly < 144:
+                if self._dot == 80:
                     self._set_mode(3)
-                elif self._dot == self.PIXEL_TRANSFER_END:
+                elif self._dot == 252:
                     self._set_mode(0)
-                    if self._ly < self.VISIBLE_SCANLINES:
-                        self._render_scanline()
-                elif self._dot == self.DOTS_PER_SCANLINE:
+                    self._render_scanline()
+                elif self._dot == 456:
                     self._dot = 0
-                    self._ly += 1
-                    if self._ly == self.VISIBLE_SCANLINES:
+                    ly += 1
+                    self._ly = ly
+                    if ly == 144:
                         self._set_mode(1)
                         self._request_vblank_interrupt()
                     else:
                         self._set_mode(2)
                     self._update_lyc_flag()
             else:
-                # V-Blank scanlines (144-153)
-                if self._dot == self.DOTS_PER_SCANLINE:
+                if self._dot == 456:
                     self._dot = 0
-                    self._ly += 1
-                    if self._ly > self.TOTAL_SCANLINES - 1:
+                    ly += 1
+                    self._ly = ly
+                    if ly > 153:
+                        ly = 0
                         self._ly = 0
                         self._window_line = 0
                         self._set_mode(2)
@@ -293,22 +330,28 @@ class PPU:
 
         # --- Background ---
         bg_map_base = 0x9C00 if lcdc & 0x08 else 0x9800
+        _tile_data_address = self._tile_data_address
 
         scroll_y = (ly + scy) & 0xFF
         tile_row = scroll_y >> 3
         row_in_tile = scroll_y & 0x07
+        map_row_base = bg_map_base + tile_row * 32
+        row_offset = row_in_tile * 2
 
         row = self._framebuffer[ly]
+        prev_tile_col = -1
+        low_byte = 0
+        high_byte = 0
         for px in range(160):
             scroll_x = (px + scx) & 0xFF
             tile_col = scroll_x >> 3
 
-            tile_index = mem[bg_map_base + tile_row * 32 + tile_col]
-            tile_addr = self._tile_data_address(tile_index, unsigned_mode)
-
-            byte_offset = tile_addr + row_in_tile * 2
-            low_byte = mem[byte_offset]
-            high_byte = mem[byte_offset + 1]
+            if tile_col != prev_tile_col:
+                prev_tile_col = tile_col
+                tile_addr = _tile_data_address(mem[map_row_base + tile_col], unsigned_mode)
+                byte_offset = tile_addr + row_offset
+                low_byte = mem[byte_offset]
+                high_byte = mem[byte_offset + 1]
 
             bit_pos = 7 - (scroll_x & 0x07)
             color_index = (((high_byte >> bit_pos) & 1) << 1) | ((low_byte >> bit_pos) & 1)
@@ -322,19 +365,22 @@ class PPU:
             win_y = self._window_line
             win_tile_row = win_y >> 3
             win_row_in_tile = win_y & 0x07
+            win_map_row_base = win_map_base + win_tile_row * 32
+            win_row_offset = win_row_in_tile * 2
             window_rendered = False
 
             start_px = max(0, win_x_start)
+            prev_tile_col = -1
             for px in range(start_px, 160):
                 win_px = px - win_x_start
                 win_tile_col = win_px >> 3
 
-                tile_index = mem[win_map_base + win_tile_row * 32 + win_tile_col]
-                tile_addr = self._tile_data_address(tile_index, unsigned_mode)
-
-                byte_offset = tile_addr + win_row_in_tile * 2
-                low_byte = mem[byte_offset]
-                high_byte = mem[byte_offset + 1]
+                if win_tile_col != prev_tile_col:
+                    prev_tile_col = win_tile_col
+                    tile_addr = _tile_data_address(mem[win_map_row_base + win_tile_col], unsigned_mode)
+                    byte_offset = tile_addr + win_row_offset
+                    low_byte = mem[byte_offset]
+                    high_byte = mem[byte_offset + 1]
 
                 bit_pos = 7 - (win_px & 0x07)
                 color_index = (((high_byte >> bit_pos) & 1) << 1) | ((low_byte >> bit_pos) & 1)

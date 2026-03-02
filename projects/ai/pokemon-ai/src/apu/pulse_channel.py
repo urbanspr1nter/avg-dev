@@ -55,11 +55,10 @@ class PulseChannel:
         """Advance the frequency timer by the given number of T-cycles."""
         if not self._enabled:
             return
-        for _ in range(cycles):
-            self._freq_timer -= 1
-            if self._freq_timer <= 0:
-                self._freq_timer = (2048 - self._period) * 4
-                self._duty_pos = (self._duty_pos + 1) & 7
+        self._freq_timer -= cycles
+        while self._freq_timer <= 0:
+            self._freq_timer += (2048 - self._period) * 4
+            self._duty_pos = (self._duty_pos + 1) & 7
 
     def clock_length(self):
         """Clock the length counter (called at 256 Hz by frame sequencer)."""

@@ -2,6 +2,8 @@ from src.apu.pulse_channel import PulseChannel
 from src.apu.wave_channel import WaveChannel
 from src.apu.noise_channel import NoiseChannel
 
+_NOISE_DIVISOR_TABLE = NoiseChannel.DIVISOR_TABLE
+
 
 class APU:
     """Game Boy Audio Processing Unit.
@@ -47,6 +49,8 @@ class APU:
         # Sample generation
         self._sample_counter = 0.0
         self._sample_buffer = []
+        # Cache class constants as instance attrs for faster access
+        self._sample_period = self.SAMPLE_PERIOD
 
         # High-pass filter state (removes DC offset)
         self._hpf_capacitor_left = 0.0
@@ -61,25 +65,78 @@ class APU:
         if not self._power:
             return
 
-        for _ in range(cycles):
-            # Frame sequencer
-            self._fs_counter += 1
-            if self._fs_counter >= self.FRAME_SEQUENCER_PERIOD:
+        fs_counter = self._fs_counter + cycles
+        sample_counter = self._sample_counter + cycles
+
+        # Fast path: no event boundary within this batch
+        if fs_counter < 8192 and sample_counter < self._sample_period:
+            self._fs_counter = fs_counter
+            self._sample_counter = sample_counter
+            # Inline channel ticks to avoid 4 method calls
+            ch1 = self._ch1
+            if ch1._enabled:
+                ch1._freq_timer -= cycles
+                if ch1._freq_timer <= 0:
+                    while ch1._freq_timer <= 0:
+                        ch1._freq_timer += (2048 - ch1._period) * 4
+                        ch1._duty_pos = (ch1._duty_pos + 1) & 7
+            ch2 = self._ch2
+            if ch2._enabled:
+                ch2._freq_timer -= cycles
+                if ch2._freq_timer <= 0:
+                    while ch2._freq_timer <= 0:
+                        ch2._freq_timer += (2048 - ch2._period) * 4
+                        ch2._duty_pos = (ch2._duty_pos + 1) & 7
+            ch3 = self._ch3
+            if ch3._enabled:
+                ch3._freq_timer -= cycles
+                if ch3._freq_timer <= 0:
+                    while ch3._freq_timer <= 0:
+                        ch3._freq_timer += (2048 - ch3._period) * 2
+                        ch3._wave_pos = (ch3._wave_pos + 1) & 31
+                        byte_idx = ch3._wave_pos >> 1
+                        if ch3._wave_pos & 1:
+                            ch3._sample_buffer = ch3._wave_ram[byte_idx] & 0x0F
+                        else:
+                            ch3._sample_buffer = (ch3._wave_ram[byte_idx] >> 4) & 0x0F
+            ch4 = self._ch4
+            if ch4._enabled:
+                ch4._freq_timer -= cycles
+                if ch4._freq_timer <= 0:
+                    while ch4._freq_timer <= 0:
+                        divisor = _NOISE_DIVISOR_TABLE[ch4._divisor_code]
+                        period = divisor << ch4._clock_shift
+                        ch4._freq_timer += period if period else 1
+                        xor_bit = (ch4._lfsr & 1) ^ ((ch4._lfsr >> 1) & 1)
+                        ch4._lfsr = (ch4._lfsr >> 1) | (xor_bit << 14)
+                        if ch4._width_mode:
+                            ch4._lfsr = (ch4._lfsr & ~0x40) | (xor_bit << 6)
+            return
+
+        # Slow path: event boundary crossed
+        sample_period = self._sample_period
+        remaining = cycles
+        while remaining > 0:
+            cycles_to_fs = 8192 - self._fs_counter
+            cycles_to_sample = int(sample_period - self._sample_counter) + 1
+            step = min(remaining, cycles_to_fs, cycles_to_sample)
+
+            self._fs_counter += step
+            self._sample_counter += step
+            remaining -= step
+
+            self._ch1.tick(step)
+            self._ch2.tick(step)
+            self._ch3.tick(step)
+            self._ch4.tick(step)
+
+            if self._fs_counter >= 8192:
                 self._fs_counter = 0
                 self._clock_frame_sequencer()
 
-            # Tick channel frequency timers
-            self._ch1.tick(1)
-            self._ch2.tick(1)
-            self._ch3.tick(1)
-            self._ch4.tick(1)
-
-            # Sample generation at target rate
-            self._sample_counter += 1.0
-            if self._sample_counter >= self.SAMPLE_PERIOD:
-                self._sample_counter -= self.SAMPLE_PERIOD
-                sample = self._mix_channels()
-                self._sample_buffer.append(sample)
+            if self._sample_counter >= sample_period:
+                self._sample_counter -= sample_period
+                self._sample_buffer.append(self._mix_channels())
 
     def _clock_frame_sequencer(self):
         """Clock the frame sequencer step and dispatch to channel modulators."""
@@ -109,48 +166,46 @@ class APU:
 
         Returns a tuple of (left, right) floats in approximately -1.0 to +1.0.
         """
-        # Get DAC outputs for each channel
-        channels = [self._ch1, self._ch2, self._ch3, self._ch4]
-        dac_outputs = []
-        for ch in channels:
-            if ch._dac_enabled:
-                dac_outputs.append((ch.get_output() / 7.5) - 1.0)
-            else:
-                dac_outputs.append(0.0)
+        # Get DAC outputs inline (avoid list creation + loop)
+        ch1 = self._ch1
+        d1 = (ch1.get_output() / 7.5) - 1.0 if ch1._dac_enabled else 0.0
+        ch2 = self._ch2
+        d2 = (ch2.get_output() / 7.5) - 1.0 if ch2._dac_enabled else 0.0
+        ch3 = self._ch3
+        d3 = (ch3.get_output() / 7.5) - 1.0 if ch3._dac_enabled else 0.0
+        ch4 = self._ch4
+        d4 = (ch4.get_output() / 7.5) - 1.0 if ch4._dac_enabled else 0.0
 
+        nr51 = self._nr51
         left = 0.0
         right = 0.0
 
         # NR51 panning: bits 4-7 = left, bits 0-3 = right
-        for i, dac_out in enumerate(dac_outputs):
-            if self._nr51 & (0x10 << i):  # Left
-                left += dac_out
-            if self._nr51 & (0x01 << i):  # Right
-                right += dac_out
+        if nr51 & 0x10: left += d1
+        if nr51 & 0x01: right += d1
+        if nr51 & 0x20: left += d2
+        if nr51 & 0x02: right += d2
+        if nr51 & 0x40: left += d3
+        if nr51 & 0x04: right += d3
+        if nr51 & 0x80: left += d4
+        if nr51 & 0x08: right += d4
 
-        # Normalize (up to 4 channels summed)
-        left /= 4.0
-        right /= 4.0
+        # Normalize and apply master volume from NR50
+        nr50 = self._nr50
+        left *= (((nr50 >> 4) & 0x07) + 1) / 32.0
+        right *= ((nr50 & 0x07) + 1) / 32.0
 
-        # Apply master volume from NR50
-        left_volume = ((self._nr50 >> 4) & 0x07) + 1
-        right_volume = (self._nr50 & 0x07) + 1
-        left *= left_volume / 8.0
-        right *= right_volume / 8.0
+        # Inline high-pass filter (avoid 2 method calls)
+        charge = self._hpf_charge_factor
+        cap_l = self._hpf_capacitor_left
+        out_l = left - cap_l
+        self._hpf_capacitor_left = left - out_l * charge
 
-        # High-pass filter
-        left, self._hpf_capacitor_left = self._high_pass(
-            left, self._hpf_capacitor_left)
-        right, self._hpf_capacitor_right = self._high_pass(
-            right, self._hpf_capacitor_right)
+        cap_r = self._hpf_capacitor_right
+        out_r = right - cap_r
+        self._hpf_capacitor_right = right - out_r * charge
 
-        return (left, right)
-
-    def _high_pass(self, sample, capacitor):
-        """Apply a simple high-pass filter to remove DC offset."""
-        out = sample - capacitor
-        capacitor = sample - out * self._hpf_charge_factor
-        return (out, capacitor)
+        return (out_l, out_r)
 
     def read(self, address):
         """Read an APU register (0xFF10-0xFF3F)."""

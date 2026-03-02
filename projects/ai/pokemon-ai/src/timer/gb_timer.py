@@ -76,29 +76,28 @@ class Timer:
     def tick(self, cycles):
         """Advance the timer by the given number of T-cycles.
 
-        Called by the CPU run loop after each instruction. For each T-cycle,
-        the internal counter increments and, if the timer is enabled, TIMA
-        increments on the falling edge of the TAC-selected counter bit.
+        Called by the CPU run loop after each instruction. Batches the
+        internal counter advance and counts falling edges of the
+        TAC-selected bit to determine TIMA increments.
         """
-        timer_enabled = (self._tac & 0x04) != 0
+        old_counter = self._internal_counter
+        # Use unwrapped value for correct edge counting across 16-bit boundary
+        unwrapped_new = old_counter + cycles
+        self._internal_counter = unwrapped_new & 0xFFFF
+
+        if not (self._tac & 0x04):
+            return
+
         clock_bit = self.TAC_CLOCK_BITS[self._tac & 0x03]
+        shift = clock_bit + 1
+        # Count falling edges: number of period boundaries crossed
+        edges = (unwrapped_new >> shift) - (old_counter >> shift)
 
-        for _ in range(cycles):
-            old_counter = self._internal_counter
-            self._internal_counter = (self._internal_counter + 1) & 0xFFFF
-
-            if not timer_enabled:
-                continue
-
-            # Detect falling edge: selected bit was 1, now 0
-            old_bit = (old_counter >> clock_bit) & 1
-            new_bit = (self._internal_counter >> clock_bit) & 1
-
-            if old_bit == 1 and new_bit == 0:
-                self._tima += 1
-                if self._tima > 0xFF:
-                    self._tima = self._tma  # Reload from TMA
-                    self._request_timer_interrupt()
+        for _ in range(edges):
+            self._tima += 1
+            if self._tima > 0xFF:
+                self._tima = self._tma
+                self._request_timer_interrupt()
 
     def _request_timer_interrupt(self):
         """Set bit 2 of the IF register to request a timer interrupt."""

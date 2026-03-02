@@ -20,8 +20,11 @@ class Memory:
 
     def __init__(self):
         # 64 KiB of memory, each cell holds an 8-bit value.
-        self.memory = [0] * 0x10000
+        # bytearray gives C-level indexing, faster than Python list.
+        self.memory = bytearray(0x10000)
         self._cartridge = None
+        self._mbc = None  # Cached MBC for fast ROM reads
+        self._rom_data = None  # Cached ROM data for inlined reads
         self._serial = None
         self._timer = None
         self._ppu = None
@@ -36,6 +39,8 @@ class Memory:
         (ROM is read-only on real hardware).
         """
         self._cartridge = cartridge
+        self._mbc = cartridge._mbc
+        self._rom_data = cartridge._mbc._rom_data
 
     def load_serial(self, serial):
         """Load a serial port handler into the memory bus.
@@ -100,7 +105,7 @@ class Memory:
         return {'memory': bytes(self.memory)}
 
     def load_state(self, state):
-        self.memory = list(state['memory'])
+        self.memory = bytearray(state['memory'])
 
     def _map_address(self, address: int) -> int:
         """
@@ -121,22 +126,46 @@ class Memory:
         """
         Read an 8-bit value from the given address.
         """
-        # ROM range: delegate to cartridge when one is loaded
-        if address <= 0x7FFF and self._cartridge is not None:
-            return self._cartridge.read(address)
+        if not 0 <= address <= 0xFFFF:
+            raise ValueError(f"Address out of range: {address:#06X}")
+        # Fast path: ROM range (most frequent — instruction fetches)
+        if address <= 0x7FFF:
+            rom_data = self._rom_data
+            if rom_data is not None:
+                if address <= 0x3FFF:
+                    return rom_data[address]
+                offset = (self._mbc._rom_bank * 0x4000) + (address - 0x4000)
+                return rom_data[offset] if offset < len(rom_data) else 0xFF
+            return self.memory[address]
 
-        # External RAM: delegate to cartridge when one is loaded
-        if 0xA000 <= address <= 0xBFFF and self._cartridge is not None:
-            return self._cartridge.read(address)
-
-        # VRAM/OAM access restrictions by PPU mode (only when LCD is enabled)
-        if self._ppu is not None and (self._ppu._lcdc & 0x80):
-            if 0x8000 <= address <= 0x9FFF and self._ppu._mode == 3:
+        # Fast path: WRAM, HRAM, and most RAM reads
+        if address < 0xFE00:
+            if 0xA000 <= address <= 0xBFFF and self._cartridge is not None:
+                return self._cartridge.read(address)
+            # VRAM access restriction (mode 3)
+            if 0x8000 <= address <= 0x9FFF and self._ppu is not None \
+                    and (self._ppu._lcdc & 0x80) and self._ppu._mode == 3:
                 return 0xFF
-            if 0xFE00 <= address <= 0xFE9F and self._ppu._mode in (2, 3):
-                return 0xFF
+            # Echo RAM
+            if 0xE000 <= address <= 0xFDFF:
+                return self.memory[address - 0x2000]
+            return self.memory[address]
 
-        # I/O register dispatch
+        # OAM access restriction (modes 2/3)
+        if 0xFE00 <= address <= 0xFE9F:
+            if self._ppu is not None and (self._ppu._lcdc & 0x80) \
+                    and self._ppu._mode in (2, 3):
+                return 0xFF
+            return self.memory[address]
+
+        # I/O registers (0xFF00-0xFF4B) and special registers
+        if address == 0xFF0F:
+            # IF register: mask to 5 bits only when CPU is wired up
+            if self._cpu:
+                return self.memory[0xFF0F] & 0x1F
+            return self.memory[0xFF0F]
+        if address == 0xFFFF:
+            return self.memory[0xFFFF]
         if address == 0xFF00 and self._joypad is not None:
             return self._joypad.read(address)
         if 0xFF01 <= address <= 0xFF02 and self._serial is not None:
@@ -148,43 +177,55 @@ class Memory:
         if 0xFF40 <= address <= 0xFF4B and self._ppu is not None:
             return self._ppu.read(address)
 
-        idx = self._map_address(address)
-
-        # Handle special memory-mapped registers
-        if address == 0xFF0F:  # IF - Interrupt Flag register
-            if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
-                return self._cpu.interrupts.get_if_register()
-        elif address == 0xFFFF:  # IE - Interrupt Enable register
-            if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
-                return self._cpu.interrupts.get_ie_register()
-
-        return self.memory[idx]
+        return self.memory[address]
 
     def set_value(self, address: int, value: int):
         """
         Write an 8-bit value to the given address.
-        When a cartridge is loaded, writes to the ROM range (0x0000-0x7FFF)
-        are ignored — ROM is read-only on real hardware. Without a cartridge
-        (e.g. in tests), writes are allowed for simplicity.
         """
+        if not 0 <= address <= 0xFFFF:
+            raise ValueError(f"Address out of range: {address:#06X}")
+        value = value & 0xFF
+
         # ROM range: forward to cartridge for MBC register handling
-        if address <= 0x7FFF and self._cartridge is not None:
-            self._cartridge.write(address, value)
+        if address <= 0x7FFF:
+            if self._cartridge is not None:
+                self._cartridge.write(address, value)
+            else:
+                self.memory[address] = value
             return
 
-        # External RAM: forward to cartridge when one is loaded
-        if 0xA000 <= address <= 0xBFFF and self._cartridge is not None:
-            self._cartridge.write(address, value)
+        # Fast path: WRAM, VRAM, external RAM
+        if address < 0xFE00:
+            if 0xA000 <= address <= 0xBFFF and self._cartridge is not None:
+                self._cartridge.write(address, value)
+                return
+            # VRAM access restriction (mode 3)
+            if 0x8000 <= address <= 0x9FFF and self._ppu is not None \
+                    and (self._ppu._lcdc & 0x80) and self._ppu._mode == 3:
+                return
+            # Echo RAM
+            if 0xE000 <= address <= 0xFDFF:
+                self.memory[address - 0x2000] = value
+                return
+            self.memory[address] = value
             return
 
-        # VRAM/OAM access restrictions by PPU mode (only when LCD is enabled)
-        if self._ppu is not None and (self._ppu._lcdc & 0x80):
-            if 0x8000 <= address <= 0x9FFF and self._ppu._mode == 3:
+        # OAM access restriction (modes 2/3)
+        if 0xFE00 <= address <= 0xFE9F:
+            if self._ppu is not None and (self._ppu._lcdc & 0x80) \
+                    and self._ppu._mode in (2, 3):
                 return
-            if 0xFE00 <= address <= 0xFE9F and self._ppu._mode in (2, 3):
-                return
+            self.memory[address] = value
+            return
 
-        # I/O register dispatch
+        # I/O registers and special registers
+        if address == 0xFF0F:
+            self.memory[0xFF0F] = value & 0x1F
+            return
+        if address == 0xFFFF:
+            self.memory[0xFFFF] = value
+            return
         if address == 0xFF00 and self._joypad is not None:
             self._joypad.write(address, value)
             return
@@ -201,18 +242,4 @@ class Memory:
             self._ppu.write(address, value)
             return
 
-        idx = self._map_address(address)
-
-        # Handle special memory-mapped registers
-        if address == 0xFF0F:  # IF - Interrupt Flag register
-            # Write to interrupt flag register
-            if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
-                self._cpu.interrupts.set_if_register(value & 0xFF)
-                return
-        elif address == 0xFFFF:  # IE - Interrupt Enable register
-            # Write to interrupt enable register
-            if hasattr(self, '_cpu') and self._cpu and hasattr(self._cpu, 'interrupts'):
-                self._cpu.interrupts.set_ie_register(value & 0xFF)
-                return
-        
-        self.memory[idx] = value & 0xFF
+        self.memory[address] = value

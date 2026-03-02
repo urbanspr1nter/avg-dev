@@ -280,57 +280,54 @@ class Interrupts:
 
     def check_interrupts(self, cpu):
         """Check for pending interrupts and service them if enabled.
-        
+
         Returns:
             int: Number of cycles used (0 if no interrupt serviced)
         """
         if not self.ime:
-            return 0  # No cycles used if interrupts disabled
-        
-        if_reg = cpu.memory.get_value(0xFF0F)  # Interrupt Flag register
-        ie_reg = cpu.memory.get_value(0xFFFF)  # Interrupt Enable register
-        pending = if_reg & ie_reg
-        
+            return 0
+
+        # Direct memory array access (bypasses get_value if/elif chain)
+        mem = cpu.memory.memory
+        pending = (mem[0xFF0F] & 0x1F) & (mem[0xFFFF] & 0x1F)
+
+        if not pending:
+            return 0
+
         # Check interrupts in priority order (V-Blank has highest priority)
-        if pending & 0x01:  # V-Blank interrupt
-            return self.service_interrupt(cpu, 0x40, 0x01)
-        elif pending & 0x02:  # LCD STAT interrupt
-            return self.service_interrupt(cpu, 0x48, 0x02)
-        elif pending & 0x04:  # Timer interrupt
-            return self.service_interrupt(cpu, 0x50, 0x04)
-        elif pending & 0x08:  # Serial interrupt
-            return self.service_interrupt(cpu, 0x58, 0x08)
-        elif pending & 0x10:  # Joypad interrupt
-            return self.service_interrupt(cpu, 0x60, 0x10)
-        
-        return 0
-    
+        if pending & 0x01:
+            return self._service_interrupt_fast(cpu, mem, 0x40, 0x01)
+        if pending & 0x02:
+            return self._service_interrupt_fast(cpu, mem, 0x48, 0x02)
+        if pending & 0x04:
+            return self._service_interrupt_fast(cpu, mem, 0x50, 0x04)
+        if pending & 0x08:
+            return self._service_interrupt_fast(cpu, mem, 0x58, 0x08)
+        return self._service_interrupt_fast(cpu, mem, 0x60, 0x10)
+
+    def _service_interrupt_fast(self, cpu, mem, handler_address, interrupt_bit):
+        """Service an interrupt using direct memory access."""
+        self.ime = False
+        self.halted = False
+        cpu.push_word(cpu.registers.PC)
+        cpu.registers.PC = handler_address
+        mem[0xFF0F] = (mem[0xFF0F] & ~interrupt_bit) & 0x1F
+        return 20
+
     def service_interrupt(self, cpu, handler_address, interrupt_bit):
-        """Service an interrupt.
-        
+        """Service an interrupt (legacy interface used by HALT handler).
+
         Args:
             cpu: CPU instance
             handler_address: Address of interrupt handler
             interrupt_bit: Bit to clear in IF register
-            
+
         Returns:
             int: Number of cycles used (20 for interrupt handling)
         """
-        # Disable interrupts during service
-        self.ime = False
-        self.halted = False
-        
-        # Push current PC to stack (16-bit operation)
-        cpu.push_word(cpu.registers.PC)
-        
-        # Jump to handler
-        cpu.registers.PC = handler_address
-        
-        # Clear the specific interrupt flag
-        if_reg = cpu.memory.get_value(0xFF0F)
-        cpu.memory.set_value(0xFF0F, if_reg & ~interrupt_bit)
-        
-        return 20  # Interrupt handling takes 20 cycles
+        return self._service_interrupt_fast(
+            cpu, cpu.memory.memory, handler_address, interrupt_bit
+        )
 
     def get_if_register(self) -> int:
         """Get current IF (Interrupt Flag) register value."""
@@ -366,6 +363,28 @@ class CPU:
         self.opcodes_db = {}
         with open("Opcodes.json", "r") as f:
             self.opcodes_db = json.load(f)
+
+        # Pre-index opcode info into 256-element arrays for O(1) lookup
+        # (eliminates f-string formatting + nested dict lookup per instruction)
+        self._unprefixed_info = [None] * 256
+        for key, info in self.opcodes_db["unprefixed"].items():
+            self._unprefixed_info[int(key, 16)] = info
+        self._cbprefixed_info = [None] * 256
+        for key, info in self.opcodes_db["cbprefixed"].items():
+            self._cbprefixed_info[int(key, 16)] = info
+
+        # Pre-build operand metadata per opcode: eliminates per-instruction
+        # dict creation, list building, len() checks, and "bytes" in checks.
+        # Each entry is (opcode_info, fetch_size, operand_list, fetch_idx).
+        self._unprefixed_meta = [None] * 256
+        self._cbprefixed_meta = [None] * 256
+        for i in range(256):
+            info = self._unprefixed_info[i]
+            if info is not None:
+                self._unprefixed_meta[i] = self._build_opcode_meta(info)
+            info = self._cbprefixed_info[i]
+            if info is not None:
+                self._cbprefixed_meta[i] = self._build_opcode_meta(info)
 
         # Memory instance can be injected for testing or real use.
         if memory is None:
@@ -653,6 +672,24 @@ class CPU:
         # CB-prefixed opcode dispatch table (256 entries)
         self.cb_opcode_handlers = build_cb_dispatch()
 
+        # Convert handler dicts to lists for faster indexed dispatch
+        self._handler_list = [self.opcode_handlers.get(i) for i in range(256)]
+        self._cb_handler_list = [self.cb_opcode_handlers.get(i) for i in range(256)]
+
+        # Combined meta+handler lookup: single list index instead of two
+        self._dispatch = [None] * 256
+        for i in range(256):
+            meta = self._unprefixed_meta[i]
+            handler = self._handler_list[i]
+            if meta is not None and handler is not None:
+                self._dispatch[i] = (meta[0], meta[1], meta[2], meta[3], handler)
+        self._cb_dispatch = [None] * 256
+        for i in range(256):
+            meta = self._cbprefixed_meta[i]
+            handler = self._cb_handler_list[i]
+            if meta is not None and handler is not None:
+                self._cb_dispatch[i] = (meta[0], meta[1], meta[2], meta[3], handler)
+
     def save_state(self):
         return {
             'registers': {
@@ -792,61 +829,19 @@ class CPU:
 
     # Flag manipulation helpers
 
+    _FLAG_BITS = {"Z": 0x80, "N": 0x40, "H": 0x20, "C": 0x10}
+
     def get_flag(self, flag):
-        """Get the value of a CPU flag.
-
-        Args:
-            flag: 'Z', 'N', 'H', or 'C'
-
-        Returns:
-            bool: True if flag is set, False otherwise
-        """
-        flags = self.registers.AF & 0xFF
-        if flag == "Z":
-            return (flags & 0x80) != 0
-        elif flag == "N":
-            return (flags & 0x40) != 0
-        elif flag == "H":
-            return (flags & 0x20) != 0
-        elif flag == "C":
-            return (flags & 0x10) != 0
-        else:
-            raise ValueError(f"Unknown flag: {flag}")
+        """Get the value of a CPU flag."""
+        return (self.registers.AF & self._FLAG_BITS[flag]) != 0
 
     def set_flag(self, flag, value):
-        """Set a CPU flag to a specific value.
-
-        Args:
-            flag: 'Z', 'N', 'H', or 'C'
-            value: bool or int (0/1) - True/1 to set, False/0 to clear
-        """
-        flags = self.registers.AF & 0xFF
-
-        if flag == "Z":
-            if value:
-                flags |= 0x80
-            else:
-                flags &= ~0x80
-        elif flag == "N":
-            if value:
-                flags |= 0x40
-            else:
-                flags &= ~0x40
-        elif flag == "H":
-            if value:
-                flags |= 0x20
-            else:
-                flags &= ~0x20
-        elif flag == "C":
-            if value:
-                flags |= 0x10
-            else:
-                flags &= ~0x10
+        """Set a CPU flag to a specific value."""
+        bit = self._FLAG_BITS[flag]
+        if value:
+            self.registers.AF |= bit
         else:
-            raise ValueError(f"Unknown flag: {flag}")
-
-        # Update AF register with new flags (preserve A register in high byte)
-        self.registers.AF = (self.registers.AF & 0xFF00) | flags
+            self.registers.AF = (self.registers.AF & ~bit) & 0xFFFF
 
     # Flag calculation helpers
 
@@ -977,6 +972,46 @@ class CPU:
         high = self.memory.get_value(address + 1)
         return (high << 8) | low
 
+    def _build_opcode_meta(self, opcode_info):
+        """Pre-build operand metadata for a single opcode.
+
+        Returns (opcode_info, fetch_size, operand_list, fetch_idx) where:
+        - fetch_size: 0, 1, or 2 bytes to read from instruction stream
+        - operand_list: pre-built list of operand dicts (reused at runtime)
+        - fetch_idx: index into operand_list for the fetched-value operand (-1 if none)
+        """
+        operands = opcode_info["operands"]
+        is_conditional = len(opcode_info.get("cycles", [])) > 1
+
+        pre_ops = []
+        fetch_size = 0
+        fetch_idx = -1
+
+        for operand in operands:
+            name = operand["name"]
+            immediate = operand["immediate"]
+
+            if "bytes" in operand:
+                fetch_idx = len(pre_ops)
+                fetch_size = operand["bytes"]
+                pre_ops.append({
+                    "name": name,
+                    "value": 0,
+                    "immediate": immediate,
+                    "type": "immediate_address" if name == "a16" else "immediate_value",
+                })
+            else:
+                if is_conditional and name in ("Z", "NZ", "C", "NC"):
+                    continue
+                pre_ops.append({
+                    "name": name,
+                    "value": name,
+                    "immediate": immediate,
+                    "type": "register" if immediate else "register_indirect",
+                })
+
+        return (opcode_info, fetch_size, pre_ops, fetch_idx)
+
     def fetch(self):
         """Fetch the current opcode from memory at PC and increment PC."""
         opcode = self.fetch_byte(self.registers.PC)
@@ -985,159 +1020,102 @@ class CPU:
 
     def run(self, max_cycles=-1):
         cycles_consumed = 0
-        while True:
-            if max_cycles >= 0 and self.current_cycles >= max_cycles:
-                break
 
+        # Cache frequently accessed attributes as locals for speed
+        registers = self.registers
+        interrupts = self.interrupts
+        memory_get = self.memory.get_value
+        mem_array = self.memory.memory
+        timer = self._timer
+        ppu = self._ppu
+        apu = self._apu
+        dispatch = self._dispatch
+        cb_dispatch = self._cb_dispatch
+        current_cycles = self.current_cycles
+
+        timer_tick = timer.tick if timer else None
+        ppu_tick = ppu.tick if ppu else None
+        apu_tick = apu.tick if apu else None
+
+        while current_cycles < max_cycles:
             # Handle HALT state: idle until an interrupt wakes CPU
-            if self.interrupts.halted:
-                if_reg = self.memory.get_value(0xFF0F)
-                ie_reg = self.memory.get_value(0xFFFF)
-                if if_reg & ie_reg:
-                    # Any pending interrupt wakes CPU (regardless of IME)
-                    self.interrupts.halted = False
-                    # Fall through to normal interrupt check / instruction fetch
+            if interrupts.halted:
+                if mem_array[0xFF0F] & mem_array[0xFFFF]:
+                    interrupts.halted = False
                 else:
-                    # No interrupt pending — consume one machine cycle and loop
-                    self.current_cycles += 4
+                    current_cycles += 4
                     cycles_consumed += 4
-                    if self._timer:
-                        self._timer.tick(4)
-                    if self._ppu:
-                        self._ppu.tick(4)
-                    if self._apu:
-                        self._apu.tick(4)
+                    if timer_tick:
+                        timer_tick(4)
+                    if ppu_tick:
+                        ppu_tick(4)
+                    if apu_tick:
+                        apu_tick(4)
                     continue
 
-            # Check if we need to enable IME after the previous instruction
-            # This implements the EI delay: IME is enabled after the instruction following EI
-            ime_was_pending = self.interrupts.ime_pending
-            # Reset flag that tracks if IME was already handled by this instruction
-            self.interrupts.ime_handled_by_instruction = False
+            # EI delay: snapshot pending state before instruction
+            ime_was_pending = interrupts.ime_pending
+            interrupts.ime_handled_by_instruction = False
 
-            # Check for interrupts if IME is already enabled (not during EI delay)
-            if self.interrupts.ime:
-                interrupt_cycles = self.interrupts.check_interrupts(self)
+            # Check for interrupts if IME is enabled
+            if interrupts.ime:
+                interrupt_cycles = interrupts.check_interrupts(self)
                 if interrupt_cycles > 0:
-                    self.current_cycles += interrupt_cycles
+                    current_cycles += interrupt_cycles
                     cycles_consumed += interrupt_cycles
-                    continue  # Skip normal instruction fetch after interrupt
+                    continue
 
-            self.operand_values = []
-
-            # Fetch the opcode
-            opcode = self.fetch()
+            # Inline fetch: read opcode from memory[PC], advance PC
+            pc = registers.PC
+            opcode = memory_get(pc)
+            registers.PC = (pc + 1) & 0xFFFF
 
             # HALT bug: undo PC increment so the byte after HALT is read twice
-            if self.interrupts.halt_bug:
-                self.registers.PC = (self.registers.PC - 1) & 0xFFFF
-                self.interrupts.halt_bug = False
+            if interrupts.halt_bug:
+                registers.PC = pc
+                interrupts.halt_bug = False
 
-            # Look up the opcode in our database
-            opcode_info = None
-            is_cb_prefix = False
-
-            # Check if it's a prefixed opcode (0xCB)
+            # CB prefix or unprefixed lookup (combined meta+handler)
             if opcode == 0xCB:
-                is_cb_prefix = True
-                # Fetch the second byte for prefixed instructions
-                opcode = self.fetch_byte(self.registers.PC)
-                self.registers.PC = (self.registers.PC + 1) & 0xFFFF
-
-                opcode_info = self.opcodes_db["cbprefixed"].get(f"0x{opcode:02X}")
+                pc = registers.PC
+                opcode = memory_get(pc)
+                registers.PC = (pc + 1) & 0xFFFF
+                entry = cb_dispatch[opcode]
             else:
-                opcode_info = self.opcodes_db["unprefixed"].get(f"0x{opcode:02X}")
+                entry = dispatch[opcode]
 
-            # If we don't have the opcode implemented, raise an exception
-            if opcode_info is None:
+            if entry is None:
+                self.current_cycles = current_cycles
                 raise NotImplementedError(f"Opcode {opcode:#04x} not implemented")
 
-            # Fetch and construct operand dictionaries
-            operands = opcode_info["operands"]
-            for operand in operands:
-                operand_name = operand["name"]
-                operand_immediate = operand["immediate"]
+            opcode_info, fetch_size, pre_ops, fetch_idx, handler = entry
+            self.operand_values = pre_ops
 
-                if "bytes" in operand:
-                    # Operand has data to fetch from instruction stream
-                    num_bytes_for_operand = operand["bytes"]
-                    if num_bytes_for_operand == 1:
-                        fetched_value = self.fetch_byte(self.registers.PC)
-                    elif num_bytes_for_operand == 2:
-                        fetched_value = self.fetch_word(self.registers.PC)
-                    else:
-                        raise ValueError(
-                            "Not implemented yet to fetch more than 2 bytes."
-                        )
+            # Fetch operand bytes (0, 1, or 2) — no loop, no dict creation
+            if fetch_size == 1:
+                pc = registers.PC
+                pre_ops[fetch_idx]["value"] = memory_get(pc)
+                registers.PC = (pc + 1) & 0xFFFF
+            elif fetch_size == 2:
+                pc = registers.PC
+                pre_ops[fetch_idx]["value"] = memory_get(pc) | (memory_get(pc + 1) << 8)
+                registers.PC = (pc + 2) & 0xFFFF
 
-                    self.registers.PC = (self.registers.PC + operand["bytes"]) & 0xFFFF
-
-                    # Determine operand type
-                    if operand_name == "a16":
-                        operand_type = "immediate_address"
-                    else:
-                        # n8, n16, e8, r8
-                        operand_type = "immediate_value"
-
-                    self.operand_values.append(
-                        {
-                            "name": operand_name,
-                            "value": fetched_value,
-                            "immediate": operand_immediate,
-                            "type": operand_type,
-                        }
-                    )
-                else:
-                    # Register operand (no bytes to fetch)
-                    if operand_immediate:
-                        operand_type = "register"
-                    else:
-                        operand_type = "register_indirect"
-
-                    # Skip condition codes - these are part of the opcode mnemonic
-                    # Only skip for conditional instructions (which have multiple cycle counts)
-                    is_conditional = len(opcode_info.get("cycles", [])) > 1
-                    if is_conditional and operand_name in ["Z", "NZ", "C", "NC"]:
-                        pass
-                    else:
-                        self.operand_values.append(
-                            {
-                                "name": operand_name,
-                                "value": operand_name,
-                                "immediate": operand_immediate,
-                                "type": operand_type,
-                            }
-                        )
-
-            # Dispatch to the handler and accumulate cycles
-            if is_cb_prefix:
-                handler = self.cb_opcode_handlers.get(opcode)
-            else:
-                handler = self.opcode_handlers.get(opcode)
-            if handler is None:
-                raise NotImplementedError(
-                    f"Handler for opcode {opcode:#04x} not implemented"
-                )
-
+            # Dispatch and accumulate cycles
             cycles_used = handler(self, opcode_info)
-            self.current_cycles += cycles_used
+            current_cycles += cycles_used
             cycles_consumed += cycles_used
-            if self._timer:
-                self._timer.tick(cycles_used)
-            if self._ppu:
-                self._ppu.tick(cycles_used)
-            if self._apu:
-                self._apu.tick(cycles_used)
+            if timer_tick:
+                timer_tick(cycles_used)
+            if ppu_tick:
+                ppu_tick(cycles_used)
+            if apu_tick:
+                apu_tick(cycles_used)
 
             # Handle delayed IME enable from EI instruction
-            # This happens AFTER the instruction executes for correct EI delay timing
-            # Only enable if:
-            #   - ime_pending was set BEFORE this instruction started
-            #   - ime_pending is STILL set (DI would have cleared it)
-            #   - the instruction didn't already handle IME itself (e.g., HALT)
-            if ime_was_pending and self.interrupts.ime_pending and not self.interrupts.ime_handled_by_instruction:
-                self.interrupts.ime = True
-                self.interrupts.ime_pending = False
+            if ime_was_pending and interrupts.ime_pending and not interrupts.ime_handled_by_instruction:
+                interrupts.ime = True
+                interrupts.ime_pending = False
 
-        # End of while loop
+        self.current_cycles = current_cycles
         return cycles_consumed

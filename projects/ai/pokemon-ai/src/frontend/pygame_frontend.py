@@ -68,8 +68,8 @@ class PygameFrontend:
         )
         pygame.display.set_caption("Game Boy")
 
-        # Native 160×144 surface, scaled up on blit
-        self._surface = pygame.Surface((GB_WIDTH, GB_HEIGHT))
+        # Pre-allocated RGB buffer for fast framebuffer → Surface conversion
+        self._pixel_buffer = bytearray(GB_WIDTH * GB_HEIGHT * 3)
 
     def run(self):
         """Main emulation loop: run one frame, render, handle input, repeat."""
@@ -197,14 +197,21 @@ class PygameFrontend:
     def _render_frame(self):
         """Blit the GB framebuffer onto the pygame window."""
         framebuffer = self._gb.get_framebuffer()
+        buf = self._pixel_buffer
 
+        offset = 0
         for y in range(GB_HEIGHT):
             row = framebuffer[y]
             for x in range(GB_WIDTH):
-                self._surface.set_at((x, y), DMG_PALETTE[row[x]])
+                r, g, b = DMG_PALETTE[row[x]]
+                buf[offset] = r
+                buf[offset + 1] = g
+                buf[offset + 2] = b
+                offset += 3
 
+        image = pygame.image.frombuffer(buf, (GB_WIDTH, GB_HEIGHT), 'RGB')
         scaled = pygame.transform.scale(
-            self._surface,
+            image,
             (GB_WIDTH * self._scale, GB_HEIGHT * self._scale),
         )
         self._screen.blit(scaled, (0, 0))

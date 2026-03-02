@@ -42,17 +42,16 @@ class NoiseChannel:
         """Advance the frequency timer by the given number of T-cycles."""
         if not self._enabled:
             return
-        for _ in range(cycles):
-            self._freq_timer -= 1
-            if self._freq_timer <= 0:
-                self._freq_timer = self._get_timer_period()
-                # Clock the LFSR
-                xor_bit = (self._lfsr & 1) ^ ((self._lfsr >> 1) & 1)
-                self._lfsr >>= 1
-                self._lfsr |= (xor_bit << 14)  # Set bit 14
-                if self._width_mode:
-                    # 7-bit mode: also set bit 6
-                    self._lfsr = (self._lfsr & ~0x40) | (xor_bit << 6)
+        self._freq_timer -= cycles
+        while self._freq_timer <= 0:
+            self._freq_timer += self._get_timer_period()
+            # Clock the LFSR
+            xor_bit = (self._lfsr & 1) ^ ((self._lfsr >> 1) & 1)
+            self._lfsr >>= 1
+            self._lfsr |= (xor_bit << 14)  # Set bit 14
+            if self._width_mode:
+                # 7-bit mode: also set bit 6
+                self._lfsr = (self._lfsr & ~0x40) | (xor_bit << 6)
 
     def _get_timer_period(self):
         """Calculate the timer period from clock shift and divisor code."""
