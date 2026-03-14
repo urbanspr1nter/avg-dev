@@ -231,3 +231,7 @@ node_modules/
 rom/
 *.gb
 *.gbc
+
+.claude
+unsloth_*
+outputs
