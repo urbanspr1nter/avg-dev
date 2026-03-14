@@ -228,7 +228,9 @@ __marimo__/
 node_modules/
 
 # ROM files (copyrighted, do not commit)
-rom/
+rom/*
+!rom/*.sav
+!rom/*.state*
 *.gb
 *.gbc
 
