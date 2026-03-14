@@ -1,8 +1,9 @@
 import sqlite3
 
-confirmation = input("This will overwrite existing bbox data in the dataset. Continue? [y/N]")
+confirmation = input("This will overwrite existing bbox data in the dataset. Continue? [y/N] ")
 
 if confirmation.lower() != "y":
+    print("Got it, I'll exit.")
     exit(0)
 
 db_path = "dataset.db"
