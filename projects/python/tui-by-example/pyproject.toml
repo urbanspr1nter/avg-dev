@@ -1,0 +1,12 @@
+[project]
+name = "tui-demo"
+version = "0.1.0"
+description = "Beginner Minimalist TUI Demo in Python using ncurses"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["src"]
+package-dir = {"" = "src"}
